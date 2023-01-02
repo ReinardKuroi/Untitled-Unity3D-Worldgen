@@ -19,6 +19,8 @@ namespace TerrainGenerator {
         Queue<Point> pointsToDestroy = new Queue<Point>();
         GameObject pointHolder;
         const string pointHolderName = "Point Holder";
+        delegate float SamplePoint(float3 coordinates);
+        SamplePoint sampleFunction = noise.snoise;
 
         void Update() {
             if (settingsUpdated) {
@@ -44,7 +46,7 @@ namespace TerrainGenerator {
             Point point;
             float sampleNoise;
 
-            sampleNoise = noise.snoise((Vector3)coordinates * scale);
+            sampleNoise = sampleFunction((Vector3)coordinates * scale);
             point = new Point(coordinates, sampleNoise);
             pointsToCreate.Enqueue(point);
         }
@@ -53,7 +55,7 @@ namespace TerrainGenerator {
             while (pointsToCreate.Count > 0) {
                 Point point = pointsToCreate.Dequeue();
                 int hash = point.Hash;
-                if (point.Level > level) {
+                if (point.Density > level) {
                     if (!points.ContainsKey(hash)) {
                         points[hash] = point;
                         point.GameObject = Instantiate<GameObject>(point.LoadPrefab(), point.Coordinates, Quaternion.identity);
@@ -62,7 +64,7 @@ namespace TerrainGenerator {
                     } else {
                         point = points[hash];
                     }
-                    point.GameObject.transform.localScale.Set(point.Level, point.Level, point.Level);
+                    point.GameObject.transform.localScale.Set(point.Density, point.Density, point.Density);
                 } else {
                     if (points.ContainsKey(hash)) {
                         pointsToDestroy.Enqueue(points[hash]);
