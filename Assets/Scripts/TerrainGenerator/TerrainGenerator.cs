@@ -11,65 +11,80 @@ namespace TerrainGenerator {
         public float level = 0.5f;
         [Range(0.05f, 0.2f)]
         public float scale = 0.1f;
-        public Vector3 size = new Vector3(16, 16, 16);
+        public Vector3Int size = new Vector3Int(16, 16, 16);
 
         bool settingsUpdated;
-        Queue<Point> points = new Queue<Point>();
+        Dictionary<int, Point> points = new Dictionary<int, Point>();
+        Queue<Point> pointsToCreate = new Queue<Point>();
+        Queue<Point> pointsToDestroy = new Queue<Point>();
         GameObject pointHolder;
         const string pointHolderName = "Point Holder";
 
-        void Awake() {
-            print("Awake");
-            DestroyMesh();
-        }
-
         void Update() {
             if (settingsUpdated) {
-                DestroyMesh();
                 GenerateMesh();
                 settingsUpdated = false;
             }
+            CreatePointQueue();
+            EmptyDestroyQueue();
         }
 
         private void OnValidate() {
             settingsUpdated = true;
         }
 
-        void DestroyMesh() {
-            while (points.Count > 0) {
-                DestroyImmediate(points.Dequeue().gameObject, false);
-            }
-            Point[] oldPoints = FindObjectsOfType<Point>();
-            for (int i = 0; i < oldPoints.Length; ++i) {
-                oldPoints[i].gameObject.SetActive(true);
-                DestroyImmediate(oldPoints[i].gameObject, false);
+        void EmptyDestroyQueue() {
+            while (pointsToDestroy.Count > 0) {
+                Point point = pointsToDestroy.Dequeue();
+                DestroyImmediate(point.GameObject, false);
             }
         }
 
-        void InstantiatePoint(int x, int y, int z) {
+        void InstantiatePoint(Vector3Int coordinates) {
             Point point;
-            Vector3Int coordinates;
             float sampleNoise;
 
-            coordinates = new Vector3Int(x, y, z);
-            sampleNoise = noise.snoise(new float3(x, y, z) * scale);
-            if (sampleNoise > level) {
-                point = Point.CreatePoint(coordinates);
-                point.transform.parent = pointHolder.transform;
-                point.transform.localScale *= sampleNoise * math.sqrt(2);
-                points.Enqueue(point);
+            sampleNoise = noise.snoise((Vector3)coordinates * scale);
+            point = new Point(coordinates, sampleNoise);
+            pointsToCreate.Enqueue(point);
+        }
+
+        void CreatePointQueue() { 
+            while (pointsToCreate.Count > 0) {
+                Point point = pointsToCreate.Dequeue();
+                int hash = point.Hash;
+                if (point.Level > level) {
+                    if (!points.ContainsKey(hash)) {
+                        points[hash] = point;
+                        point.GameObject = Instantiate<GameObject>(point.LoadPrefab(), point.Coordinates, Quaternion.identity);
+                        point.GameObject.name = $"Point ({point.Coordinates.x} {point.Coordinates.y} {point.Coordinates.z}) #{point.Hash}";
+                        point.GameObject.transform.parent = pointHolder.transform;
+                    } else {
+                        point = points[hash];
+                    }
+                    point.GameObject.transform.localScale.Set(point.Level, point.Level, point.Level);
+                } else {
+                    if (points.ContainsKey(hash)) {
+                        pointsToDestroy.Enqueue(points[hash]);
+                        points.Remove(hash);
+                    }
+                }
+            }
+        }
+
+        IEnumerable<Vector3Int> Volume() {
+            for (int x = 0; x < size.x; ++x) {
+                for (int y = 0; y < size.y; ++y) {
+                    for (int z = 0; z < size.z; ++z) {
+                        yield return new Vector3Int(x, y, z);
+                    }
+                }
             }
         }
 
         void GenerateMesh() {
             CreatePointHolder();
-            for (int x = 0; x < size.x; ++x) {
-                for (int y = 0; y < size.y; ++y) {
-                    for (int z = 0; z < size.z; ++z) {
-                        InstantiatePoint(x, y, z);
-                    }
-                }
-            }
+            foreach (Vector3Int coordinates in Volume()) { InstantiatePoint(coordinates); }
         }
 
         void CreatePointHolder() {
