@@ -8,6 +8,7 @@ namespace TerrainGenerator {
         public float Density { get; private set; }
         public GameObject GameObject { get; set; }
         public int Hash { get; private set; }
+        public bool Exists { get { return Density > 0; } }
         private readonly string prefabName = "Prefabs/Point (black)";
 
         public Point(Vector3Int coordinates, float density) {

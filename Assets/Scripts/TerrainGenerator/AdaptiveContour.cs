@@ -5,11 +5,9 @@ using UnityEngine;
 namespace TerrainGenerator {
     public class AdaptiveCountour {
         Dictionary<int, Point> pointDensityData;
-        float level;
 
-        AdaptiveCountour(Dictionary<int, Point> pointDensityData, float level) {
+        AdaptiveCountour(Dictionary<int, Point> pointDensityData) {
             this.pointDensityData = pointDensityData;
-            this.level = level;
         }
 
         Mesh RunContouring() {
@@ -35,6 +33,7 @@ namespace TerrainGenerator {
         Vector3 FindBestVertex(Point point) {
             int hash;
             Point[,,] octet = new Point[2,2,2];
+            List<Vector3> transitions = new List<Vector3>();
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
@@ -44,8 +43,48 @@ namespace TerrainGenerator {
                 }
             }
             // Calculate sign changes
+            // Along x axis
+            for (int dy = 0; dy < 2; ++dy) {
+                for (int dz = 0; dz < 2; ++dz) {
+                    Point a = octet[0, dy, dz];
+                    Point b = octet[1, dy, dz];
+                    if (a.Exists != b.Exists) {
+                        float interpolateX = Interpolate(a.Density, b.Density);
+                        transitions.Add(point.Coordinates + new Vector3(interpolateX, dy, dz));
+                    }
+                }
+            }
+            // Along y axis
+            for (int dx = 0; dx < 2; ++dx) {
+                for (int dz = 0; dz < 2; ++dz) {
+                    Point a = octet[dx, 0, dz];
+                    Point b = octet[dx, 1, dz];
+                    if (a.Exists != b.Exists) {
+                        float interpolateY = Interpolate(a.Density, b.Density);
+                        transitions.Add(point.Coordinates + new Vector3(dx, interpolateY, dz));
+                    }
+                }
+            }
+            // Along z axis
+            for (int dx = 0; dx < 2; ++dx) {
+                for (int dy = 0; dy < 2; ++dy) {
+                    Point a = octet[dx, dy, 0];
+                    Point b = octet[dx, dy, 1];
+                    if (a.Exists != b.Exists) {
+                        float interpolateZ = Interpolate(a.Density, b.Density);
+                        transitions.Add(point.Coordinates + new Vector3(dx, dy, interpolateZ));
+                    }
+                }
+            }
 
-            return new Vector3();
+            if (transitions.Count == 0) {
+                return new Vector3();
+            }
+
+            foreach (Vector3 transition in transitions) {
+                
+            }
+            return QuadraticError();
         }
     }
     struct Quad {

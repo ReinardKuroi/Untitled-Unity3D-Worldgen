@@ -46,7 +46,7 @@ namespace TerrainGenerator {
             Point point;
             float sampleNoise;
 
-            sampleNoise = sampleFunction((Vector3)coordinates * scale);
+            sampleNoise = sampleFunction((Vector3)coordinates * scale) - level;
             point = new Point(coordinates, sampleNoise);
             pointsToCreate.Enqueue(point);
         }
@@ -55,7 +55,7 @@ namespace TerrainGenerator {
             while (pointsToCreate.Count > 0) {
                 Point point = pointsToCreate.Dequeue();
                 int hash = point.Hash;
-                if (point.Density > level) {
+                if (point.Exists) {
                     if (!points.ContainsKey(hash)) {
                         points[hash] = point;
                         point.GameObject = Instantiate<GameObject>(point.LoadPrefab(), point.Coordinates, Quaternion.identity);
@@ -96,6 +96,7 @@ namespace TerrainGenerator {
                 } else {
                     pointHolder = new GameObject(pointHolderName);
                 }
+                
             }
         }
     }
