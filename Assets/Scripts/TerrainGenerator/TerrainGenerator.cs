@@ -9,28 +9,28 @@ namespace TerrainGenerator {
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
         public bool updateInEditMode = true;
+        [Header("Map dimensions")]
+        public Vector3Int mapStart = new Vector3Int();
+        public Vector3Int mapEnd = new Vector3Int();
+        [Header("Chunk parameters")]
         [Range(0.0f, 1.0f)]
         public float level = 0.5f;
         [Range(0.01f, 0.2f)]
         public float scale = 0.1f;
         public Vector3Int size = new Vector3Int(16, 16, 16);
-        public Vector3Int chunkOffset = new Vector3Int();
 
-        Queue<Vector3> pointsToCreate = new Queue<Vector3>();
-        Queue<GameObject> points = new Queue<GameObject>();
-        Queue<GameObject> pointsToDestroy = new Queue<GameObject>();
+        const string chunkRootName = "Chunk Root";
+        GameObject chunkRoot;
+        Queue<Chunk> deadChunks = new Queue<Chunk>();
+        Queue<Chunk> aliveChunks = new Queue<Chunk>();
         bool settingsUpdated;
-        GameObject pointHolder;
-        const string pointHolderName = "Point Holder";
-        const string prefabName = "Prefabs/Point (black)";
-        Func<float3, float> sampleFunction = noise.snoise;
+        private bool DynamicGeneration = false;
 
         void Update() {
             if (settingsUpdated) {
                 UpdateMesh();
                 settingsUpdated = false;
             }
-
         }
 
         void UpdateMesh() {
@@ -43,63 +43,56 @@ namespace TerrainGenerator {
             settingsUpdated = true;
         }
 
-        void RunDestroyQueue() {
-            while (pointsToDestroy.Count > 0) {
-                GameObject point = pointsToDestroy.Dequeue();
-                DestroyImmediate(point, false);
-            }
-        }
-
-        void EnqueueCreatePoint(Vector3 coordinates) {
-            pointsToCreate.Enqueue(coordinates);
-        }
-
-        void EnqueueDestroyPoints() {
-            for (int i = 0; i < pointHolder.transform.childCount; ++i) {
-                GameObject point = pointHolder.transform.GetChild(i).gameObject;
-                pointsToDestroy.Enqueue(point);
-            }
-        }
-
-        GameObject LoadPrefab() {
-            return Resources.Load<GameObject>(prefabName);
-        }
-
-        void CreatePointQueue() {
-            GameObject pointPrefab = LoadPrefab();
-            while (pointsToCreate.Count > 0) {
-                Vector3 coordinates = pointsToCreate.Dequeue();
-                string name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
-                GameObject point = Instantiate<GameObject>(pointPrefab);
-                point.name = name;
-                point.transform.parent = pointHolder.transform;
-                point.transform.SetLocalPositionAndRotation(coordinates, Quaternion.identity);
-            }
-        }
-
         void GenerateMesh() {
-            CreatePointHolder();
-            EnqueueDestroyPoints();
-            AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
-            generator.PopulateDensityData();
-            Mesh mesh = generator.RunContouring();
-            pointHolder.transform.position = size * chunkOffset;
-            pointHolder.GetComponent<MeshFilter>().mesh = mesh;
+            if (DynamicGeneration) {
+                throw new NotImplementedException("Dynamic render not implemented!");
+            }
+
+            CreateChunkRoot();
+
+            foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
+                deadChunk.Disable();
+                if (Application.isPlaying) {
+                    deadChunks.Enqueue(deadChunk);
+                }
+            }
+
+            Material material = Resources.Load<Material>("Prefabs/White");
+
+            for (int vectorX = mapStart.x; vectorX < mapEnd.x; ++vectorX) {
+                for (int vectorY = mapStart.y; vectorY < mapEnd.y; ++vectorY) {
+                    for (int vectorZ = mapStart.z; vectorZ < mapEnd.z; ++vectorZ) {
+                        Chunk chunk;
+                        if (deadChunks.Count > 0) {
+                            chunk = deadChunks.Dequeue();
+                            chunk.gameObject.SetActive(true);
+                        } else {
+                            GameObject chunkObject = new GameObject();
+                            chunk = chunkObject.GetComponent<Chunk>();
+                            if (chunk == null) {
+                                chunk = chunkObject.AddComponent<Chunk>();
+                            }
+                        }
+                        chunk.Coordinates = new Vector3Int(vectorX, vectorY, vectorZ);
+                        chunk.Size = size;
+                        chunk.name = $"Chunk ({chunk.Coordinates})";
+                        chunk.transform.position = chunk.Coordinates * chunk.Size;
+                        chunk.transform.parent = chunkRoot.transform;
+                        chunk.Setup(material);
+                        float SampleFunction(Vector3 x) => (noise.snoise((x + chunk.Coordinates * chunk.Size) * scale) + 1) / 2 - level;
+                        AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
+                        chunk.mesh = generator.RunContouring(chunk.mesh);
+                    }
+                }
+            }
         }
 
-        float SampleFunction(Vector3 x) {
-            return (sampleFunction((x + chunkOffset * size) * scale) + 1) / 2 - level;
-        }
-
-        void CreatePointHolder() {
-            if (pointHolder == null) {
-                if (GameObject.Find(pointHolderName)) {
-                    pointHolder = GameObject.Find(pointHolderName);
+        void CreateChunkRoot() {
+            if (chunkRoot == null) {
+                if (GameObject.Find(chunkRootName)) {
+                    chunkRoot = GameObject.Find(chunkRootName);
                 } else {
-                    pointHolder = new GameObject(pointHolderName);
-                    pointHolder.AddComponent<MeshFilter>();
-                    pointHolder.AddComponent<MeshRenderer>();
-                    pointHolder.GetComponent<MeshRenderer>().material = Resources.Load<Material>("Prefabs/White");
+                    chunkRoot = new GameObject(chunkRootName);
                 }
             }
         }

@@ -450,7 +450,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   updateInEditMode: 0
-  level: 0.55
-  scale: 0.0527
-  size: {x: 16, y: 16, z: 16}
-  chunkOffset: {x: 0, y: 0, z: 0}
+  mapStart: {x: 0, y: 0, z: 0}
+  mapEnd: {x: 0, y: 0, z: 0}
+  level: 0.817
+  scale: 0.0752
+  size: {x: 8, y: 8, z: 8}
