@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -13,80 +14,67 @@ namespace TerrainGenerator {
         public float scale = 0.1f;
         public Vector3Int size = new Vector3Int(16, 16, 16);
 
+        Queue<Vector3> pointsToCreate = new Queue<Vector3>();
+        Queue<GameObject> points = new Queue<GameObject>();
+        Queue<GameObject> pointsToDestroy = new Queue<GameObject>();
         bool settingsUpdated;
-        Dictionary<int, Point> points = new Dictionary<int, Point>();
-        Queue<Point> pointsToCreate = new Queue<Point>();
-        Queue<Point> pointsToDestroy = new Queue<Point>();
         GameObject pointHolder;
         const string pointHolderName = "Point Holder";
-        delegate float SamplePoint(float3 coordinates);
-        SamplePoint sampleFunction = noise.snoise;
+        const string prefabName = "Prefabs/Point (black)";
+        Func<float3, float> sampleFunction = noise.snoise;
 
         void Update() {
             if (settingsUpdated) {
                 GenerateMesh();
                 settingsUpdated = false;
             }
+            RunDestroyQueue();
             CreatePointQueue();
-            EmptyDestroyQueue();
         }
 
         private void OnValidate() {
             settingsUpdated = true;
         }
 
-        void EmptyDestroyQueue() {
+        void RunDestroyQueue() {
             while (pointsToDestroy.Count > 0) {
-                Point point = pointsToDestroy.Dequeue();
-                DestroyImmediate(point.GameObject, false);
+                GameObject point = pointsToDestroy.Dequeue();
+                DestroyImmediate(point, false);
             }
         }
 
-        void InstantiatePoint(Vector3Int coordinates) {
-            Point point;
-            float sampleNoise;
-
-            sampleNoise = sampleFunction((Vector3)coordinates * scale) - level;
-            point = new Point(coordinates, sampleNoise);
-            pointsToCreate.Enqueue(point);
+        void EnqueueCreatePoint(Vector3 coordinates) {
+            pointsToCreate.Enqueue(coordinates);
         }
 
-        void CreatePointQueue() { 
+        void EnqueueDestroyPoints() {
+            for (int i = 0; i < pointHolder.transform.childCount; ++i) {
+                pointsToDestroy.Enqueue(pointHolder.transform.GetChild(i).gameObject);
+            }
+        }
+
+        GameObject LoadPrefab() {
+            return Resources.Load<GameObject>(prefabName);
+        }
+
+        void CreatePointQueue() {
+            GameObject pointPrefab = LoadPrefab();
             while (pointsToCreate.Count > 0) {
-                Point point = pointsToCreate.Dequeue();
-                int hash = point.Hash;
-                if (point.Exists) {
-                    if (!points.ContainsKey(hash)) {
-                        points[hash] = point;
-                        point.GameObject = Instantiate<GameObject>(point.LoadPrefab(), point.Coordinates, Quaternion.identity);
-                        point.GameObject.name = $"Point ({point.Coordinates.x} {point.Coordinates.y} {point.Coordinates.z}) #{point.Hash}";
-                        point.GameObject.transform.parent = pointHolder.transform;
-                    } else {
-                        point = points[hash];
-                    }
-                    point.GameObject.transform.localScale.Set(point.Density, point.Density, point.Density);
-                } else {
-                    if (points.ContainsKey(hash)) {
-                        pointsToDestroy.Enqueue(points[hash]);
-                        points.Remove(hash);
-                    }
-                }
-            }
-        }
-
-        IEnumerable<Vector3Int> Volume() {
-            for (int x = 0; x < size.x; ++x) {
-                for (int y = 0; y < size.y; ++y) {
-                    for (int z = 0; z < size.z; ++z) {
-                        yield return new Vector3Int(x, y, z);
-                    }
-                }
+                Vector3 coordinates = pointsToCreate.Dequeue();
+                GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
+                point.name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
+                point.transform.parent = pointHolder.transform;
             }
         }
 
         void GenerateMesh() {
             CreatePointHolder();
-            foreach (Vector3Int coordinates in Volume()) { InstantiatePoint(coordinates); }
+            EnqueueDestroyPoints();
+            AdaptiveCountour generator = new AdaptiveCountour(sampleFunction);
+            generator.PopulateDensityData(size);
+            foreach (Vector3 point in generator.RunContouring()) {
+                EnqueueCreatePoint(point);
+            }
         }
 
         void CreatePointHolder() {
@@ -96,7 +84,6 @@ namespace TerrainGenerator {
                 } else {
                     pointHolder = new GameObject(pointHolderName);
                 }
-                
             }
         }
     }
