@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,84 +8,87 @@ namespace TerrainGenerator {
 
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
+        public bool updateInEditMode = true;
         [Range(0.0f, 1.0f)]
         public float level = 0.5f;
-        [Range(0.05f, 0.2f)]
+        [Range(0.01f, 0.2f)]
         public float scale = 0.1f;
         public Vector3Int size = new Vector3Int(16, 16, 16);
+        public Vector3Int chunkOffset = new Vector3Int();
 
+        Queue<Vector3> pointsToCreate = new Queue<Vector3>();
+        Queue<GameObject> points = new Queue<GameObject>();
+        Queue<GameObject> pointsToDestroy = new Queue<GameObject>();
         bool settingsUpdated;
-        Dictionary<int, Point> points = new Dictionary<int, Point>();
-        Queue<Point> pointsToCreate = new Queue<Point>();
-        Queue<Point> pointsToDestroy = new Queue<Point>();
         GameObject pointHolder;
         const string pointHolderName = "Point Holder";
+        const string prefabName = "Prefabs/Point (black)";
+        Func<float3, float> sampleFunction = noise.snoise;
 
         void Update() {
             if (settingsUpdated) {
-                GenerateMesh();
+                UpdateMesh();
                 settingsUpdated = false;
             }
-            CreatePointQueue();
-            EmptyDestroyQueue();
+
+        }
+
+        void UpdateMesh() {
+            if (Application.isPlaying || (!Application.isPlaying && updateInEditMode)) {
+                GenerateMesh();
+            }
         }
 
         private void OnValidate() {
             settingsUpdated = true;
         }
 
-        void EmptyDestroyQueue() {
+        void RunDestroyQueue() {
             while (pointsToDestroy.Count > 0) {
-                Point point = pointsToDestroy.Dequeue();
-                DestroyImmediate(point.GameObject, false);
+                GameObject point = pointsToDestroy.Dequeue();
+                DestroyImmediate(point, false);
             }
         }
 
-        void InstantiatePoint(Vector3Int coordinates) {
-            Point point;
-            float sampleNoise;
-
-            sampleNoise = noise.snoise((Vector3)coordinates * scale);
-            point = new Point(coordinates, sampleNoise);
-            pointsToCreate.Enqueue(point);
+        void EnqueueCreatePoint(Vector3 coordinates) {
+            pointsToCreate.Enqueue(coordinates);
         }
 
-        void CreatePointQueue() { 
+        void EnqueueDestroyPoints() {
+            for (int i = 0; i < pointHolder.transform.childCount; ++i) {
+                GameObject point = pointHolder.transform.GetChild(i).gameObject;
+                pointsToDestroy.Enqueue(point);
+            }
+        }
+
+        GameObject LoadPrefab() {
+            return Resources.Load<GameObject>(prefabName);
+        }
+
+        void CreatePointQueue() {
+            GameObject pointPrefab = LoadPrefab();
             while (pointsToCreate.Count > 0) {
-                Point point = pointsToCreate.Dequeue();
-                int hash = point.Hash;
-                if (point.Level > level) {
-                    if (!points.ContainsKey(hash)) {
-                        points[hash] = point;
-                        point.GameObject = Instantiate<GameObject>(point.LoadPrefab(), point.Coordinates, Quaternion.identity);
-                        point.GameObject.name = $"Point ({point.Coordinates.x} {point.Coordinates.y} {point.Coordinates.z}) #{point.Hash}";
-                        point.GameObject.transform.parent = pointHolder.transform;
-                    } else {
-                        point = points[hash];
-                    }
-                    point.GameObject.transform.localScale.Set(point.Level, point.Level, point.Level);
-                } else {
-                    if (points.ContainsKey(hash)) {
-                        pointsToDestroy.Enqueue(points[hash]);
-                        points.Remove(hash);
-                    }
-                }
-            }
-        }
-
-        IEnumerable<Vector3Int> Volume() {
-            for (int x = 0; x < size.x; ++x) {
-                for (int y = 0; y < size.y; ++y) {
-                    for (int z = 0; z < size.z; ++z) {
-                        yield return new Vector3Int(x, y, z);
-                    }
-                }
+                Vector3 coordinates = pointsToCreate.Dequeue();
+                string name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
+                GameObject point = Instantiate<GameObject>(pointPrefab);
+                point.name = name;
+                point.transform.parent = pointHolder.transform;
+                point.transform.SetLocalPositionAndRotation(coordinates, Quaternion.identity);
             }
         }
 
         void GenerateMesh() {
             CreatePointHolder();
-            foreach (Vector3Int coordinates in Volume()) { InstantiatePoint(coordinates); }
+            EnqueueDestroyPoints();
+            AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
+            generator.PopulateDensityData();
+            Mesh mesh = generator.RunContouring();
+            pointHolder.transform.position = size * chunkOffset;
+            pointHolder.GetComponent<MeshFilter>().mesh = mesh;
+        }
+
+        float SampleFunction(Vector3 x) {
+            return (sampleFunction((x + chunkOffset * size) * scale) + 1) / 2 - level;
         }
 
         void CreatePointHolder() {
@@ -93,6 +97,9 @@ namespace TerrainGenerator {
                     pointHolder = GameObject.Find(pointHolderName);
                 } else {
                     pointHolder = new GameObject(pointHolderName);
+                    pointHolder.AddComponent<MeshFilter>();
+                    pointHolder.AddComponent<MeshRenderer>();
+                    pointHolder.GetComponent<MeshRenderer>().material = Resources.Load<Material>("Prefabs/White");
                 }
             }
         }
