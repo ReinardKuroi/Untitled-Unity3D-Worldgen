@@ -40,25 +40,29 @@ namespace TerrainGenerator {
         };
         Vector3Int size;
 
+        float DensityFunction(Vector3 x) {
+            return densityFunction(x);
+        }
+
         public AdaptiveContour(Func<Vector3, float> densityFunction, Vector3Int size) {
             this.pointDensityData = new Dictionary<Vector3, Point>();
             this.densityFunction = densityFunction;
             this.size = size;
         }
 
-        public void PopulateDensityData() {
+        void PopulateDensityData() {
             foreach (Vector3 coordinates in Volume(size)) {
-                float density = densityFunction(coordinates);
+                float density = DensityFunction(coordinates);
                 pointDensityData[coordinates] = new Point(coordinates, density);
             }
         }
 
-        public Mesh RunContouring() {
-            Mesh mesh = new Mesh();
+        public Mesh RunContouring(Mesh mesh) {
+            List<int> faces;
             List<Vector3> vertices = new List<Vector3>();
             Dictionary<Vector3, int> vertexIndices = new Dictionary<Vector3, int>();
-            List<int> faces;
-            List<Vector3> normals;
+
+            PopulateDensityData();
 
             foreach (Vector3 coordinates in Volume(size)) {
                 Point point = pointDensityData[coordinates];
@@ -75,6 +79,7 @@ namespace TerrainGenerator {
 
             faces = GenerateFaces(vertexIndices);
 
+            mesh.Clear();
             mesh.vertices = vertices.ToArray();
             mesh.triangles = faces.ToArray();
             mesh.RecalculateNormals();
@@ -129,7 +134,7 @@ namespace TerrainGenerator {
                     for (int dz = 0; dz < 2; ++dz) {
                         Vector3 vertex = point.coordinates + new Vector3(dx, dy, dz);
                         if (!pointDensityData.ContainsKey(vertex)) {
-                            pointDensityData[vertex] = new Point(vertex, densityFunction(vertex));
+                            pointDensityData[vertex] = new Point(vertex, DensityFunction(vertex));
                         }
                         octet[dx, dy, dz] = pointDensityData[vertex];
                     }
@@ -218,9 +223,9 @@ namespace TerrainGenerator {
 
         Vector3 ApproximateNormals(Vector3 coordinates) {
             float delta = 0.00001f;
-            float nx = densityFunction(coordinates - new Vector3(delta, 0, 0)) - densityFunction(coordinates + new Vector3(delta, 0, 0));
-            float ny = densityFunction(coordinates - new Vector3(0, delta, 0)) - densityFunction(coordinates + new Vector3(0, delta, 0));
-            float nz = densityFunction(coordinates - new Vector3(0, 0, delta)) - densityFunction(coordinates + new Vector3(0, 0, delta));
+            float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0)) - DensityFunction(coordinates + new Vector3(delta, 0, 0));
+            float ny = DensityFunction(coordinates - new Vector3(0, delta, 0)) - DensityFunction(coordinates + new Vector3(0, delta, 0));
+            float nz = DensityFunction(coordinates - new Vector3(0, 0, delta)) - DensityFunction(coordinates + new Vector3(0, 0, delta));
             Vector3 gradient = new Vector3(nx, ny, nz);
             return Vector3.Normalize(-gradient);
         }
