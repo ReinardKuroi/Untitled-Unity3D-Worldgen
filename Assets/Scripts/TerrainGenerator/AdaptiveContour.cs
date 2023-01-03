@@ -28,9 +28,15 @@ namespace TerrainGenerator {
             List<Quad> faces = new List<Quad>();
 
             foreach (Point point in pointDensityData.Values) {
-                Vector3 vertex = FindBestVertex(point);
-                vertices.Add(vertex);
-                vertexIndices[vertex] = vertices.Count; 
+                Point[,,] octet = GetNeighbouringOctet(point);
+                List<Vector3> transitions = CalculateTransitions(octet);
+
+                if (transitions.Count != 0) {
+                    List<Vector3> normals = CalculateNormals(transitions);
+                    Vector3 vertex = ParticleDescent(point.coordinates, transitions, normals);
+                    vertices.Add(vertex);
+                    vertexIndices[vertex] = vertices.Count;
+                }
             }
             //foreach (Vector3 vertex in vertices) {
             //    // Calculate quads
@@ -43,10 +49,8 @@ namespace TerrainGenerator {
             return a / (a - b);
         }
 
-        Vector3 FindBestVertex(Point point) {
-            Point[,,] octet = new Point[2,2,2];
-            List<Vector3> transitions = new List<Vector3>();
-            List<Vector3> normals = new List<Vector3>();
+        Point[,,] GetNeighbouringOctet(Point point) {
+            Point[,,] octet = new Point[2, 2, 2];
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
@@ -56,11 +60,16 @@ namespace TerrainGenerator {
                         } else {
                             octet[dx, dy, dz] = new Point(vertex, densityFunction(vertex));
                         }
-                        
+
                     }
                 }
             }
-            // Calculate sign changes
+            return octet;
+        }
+
+        List<Vector3> CalculateTransitions(Point[,,] octet) {
+            List<Vector3> transitions = new List<Vector3>();
+            Point point = octet[0, 0, 0];
             // Along x axis
             for (int dy = 0; dy < 2; ++dy) {
                 for (int dz = 0; dz < 2; ++dz) {
@@ -94,16 +103,15 @@ namespace TerrainGenerator {
                     }
                 }
             }
+            return transitions;
+        }
 
-            if (transitions.Count == 0) {
-                return new Vector3();
-            }
-
+        List<Vector3> CalculateNormals(List<Vector3> transitions) {
+            List<Vector3> normals = new List<Vector3>();
             foreach (Vector3 transition in transitions) {
                 normals.Add(ApproximateNormals(transition));
             }
-
-            return ParticleDescent(point.coordinates, transitions, normals);
+            return normals;
         }
 
         private Vector3 ParticleDescent(Vector3 coordinates, List<Vector3> transitions, List<Vector3> normals, float threshold = 0.00001f) {

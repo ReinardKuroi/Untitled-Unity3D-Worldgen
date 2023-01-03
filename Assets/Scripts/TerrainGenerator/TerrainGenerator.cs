@@ -63,11 +63,9 @@ namespace TerrainGenerator {
             while (pointsToCreate.Count > 0) {
                 Vector3 coordinates = pointsToCreate.Dequeue();
                 string name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
-                if (!GameObject.Find(name)) {
-                    GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
-                    point.name = name;
-                    point.transform.parent = pointHolder.transform;
-                }
+                GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
+                point.name = name;
+                point.transform.parent = pointHolder.transform;
             }
         }
 
