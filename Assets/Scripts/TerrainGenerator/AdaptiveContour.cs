@@ -10,14 +10,14 @@ namespace TerrainGenerator {
         readonly Func<float3, float> densityFunction;
 
         public AdaptiveContour(Func<float3, float> densityFunction) {
-            pointDensityData = new Dictionary<Vector3, Point>();
+            this.pointDensityData = new Dictionary<Vector3, Point>();
             this.densityFunction = densityFunction;
         }
 
-        public void PopulateDensityData(Vector3Int size) {
+        public void PopulateDensityData(Vector3Int size, Vector3 offset) {
             foreach (Vector3 coordinates in Volume(size)) {
-                float density = densityFunction(coordinates);
-                pointDensityData[coordinates] = new Point(coordinates, density);
+                float density = densityFunction(coordinates + offset);
+                pointDensityData[coordinates + offset] = new Point(coordinates + offset, density);
             }
         }
 
@@ -60,7 +60,6 @@ namespace TerrainGenerator {
                         } else {
                             octet[dx, dy, dz] = new Point(vertex, densityFunction(vertex));
                         }
-
                     }
                 }
             }
@@ -131,7 +130,7 @@ namespace TerrainGenerator {
                     Vector3 transition = transitions[j];
                     Vector3 normal = normals[j];
 
-                    force += -1f * normal * Vector3.Dot(normal, centerPoint - transition);
+                    force += normal * - 1f * Vector3.Dot(normal, centerPoint - transition);
                 }
 
                 float damping = 1 - (float)i / maxIterations;
@@ -142,16 +141,16 @@ namespace TerrainGenerator {
                 }
             }
 
-            return coordinates + centerPoint;
+            return centerPoint;
         }
 
         Vector3 ApproximateNormals(Vector3 coordinates) {
-            float delta = 0.0001f;
-            float pointDensity = densityFunction(coordinates);
-            float nx = (pointDensity - densityFunction(coordinates + new Vector3(delta, 0, 0))) / delta;
-            float ny = (pointDensity - densityFunction(coordinates + new Vector3(0, delta, 0))) / delta;
-            float nz = (pointDensity - densityFunction(coordinates + new Vector3(0, 0, delta))) / delta;
-            return new Vector3(nx, ny, nz).normalized;
+            float delta = 0.00001f;
+            float nx = densityFunction(coordinates - new Vector3(delta, 0, 0)) - densityFunction(coordinates + new Vector3(delta, 0, 0));
+            float ny = densityFunction(coordinates - new Vector3(0, delta, 0)) - densityFunction(coordinates + new Vector3(0, delta, 0));
+            float nz = densityFunction(coordinates - new Vector3(0, 0, delta)) - densityFunction(coordinates + new Vector3(0, 0, delta));
+            Vector3 gradient = new Vector3(nx, ny, nz);
+            return Vector3.Normalize(-gradient);
         }
         IEnumerable<Vector3Int> Volume(Vector3Int size) {
             for (int x = 0; x < size.x + 1; ++x) {

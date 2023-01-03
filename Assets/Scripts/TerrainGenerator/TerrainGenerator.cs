@@ -8,11 +8,13 @@ namespace TerrainGenerator {
 
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
+        public bool updateInEditMode = true;
         [Range(0.0f, 1.0f)]
         public float level = 0.5f;
         [Range(0.01f, 0.2f)]
         public float scale = 0.1f;
         public Vector3Int size = new Vector3Int(16, 16, 16);
+        public Vector3Int chunkOffset = new Vector3Int();
 
         Queue<Vector3> pointsToCreate = new Queue<Vector3>();
         Queue<GameObject> points = new Queue<GameObject>();
@@ -25,11 +27,18 @@ namespace TerrainGenerator {
 
         void Update() {
             if (settingsUpdated) {
-                GenerateMesh();
+                UpdateMesh();
                 settingsUpdated = false;
             }
-            RunDestroyQueue();
-            CreatePointQueue();
+
+        }
+
+        void UpdateMesh() {
+            if (Application.isPlaying || (!Application.isPlaying && updateInEditMode)) {
+                GenerateMesh();
+                RunDestroyQueue();
+                CreatePointQueue();
+            }
         }
 
         private void OnValidate() {
@@ -73,7 +82,7 @@ namespace TerrainGenerator {
             CreatePointHolder();
             EnqueueDestroyPoints();
             AdaptiveContour generator = new AdaptiveContour(x => (sampleFunction(x * scale) + 1) / 2 - level);
-            generator.PopulateDensityData(size);
+            generator.PopulateDensityData(size, chunkOffset * size);
             foreach (Vector3 point in generator.RunContouring()) {
                 EnqueueCreatePoint(point);
             }
