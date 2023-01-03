@@ -5,44 +5,117 @@ using UnityEngine;
 using Unity.Mathematics;
 
 namespace TerrainGenerator {
+
     public class AdaptiveContour {
         Dictionary<Vector3, Point> pointDensityData;
-        readonly Func<float3, float> densityFunction;
+        readonly Func<Vector3, float> densityFunction;
+        readonly Vector3[,] cubicOffsets = new Vector3[3,6] {
+            {
+                // along x
+                new(0, 0, 0),
+                new(0, 1, 0),
+                new(0, 0, 1),
+                new(0, 1, 0),
+                new(0, 1, 1),
+                new(0, 0, 1)
+            },
+            {
+                // along y
+                new(0, 0, 0),
+                new(0, 0, 1),
+                new(1, 0, 0),
+                new(0, 0, 1),
+                new(1, 0, 1),
+                new(1, 0, 0)
+            },
+            {
+                // along z
+                new(0, 0, 0),
+                new(1, 0, 0),
+                new(0, 1, 0),
+                new(1, 0, 0),
+                new(1, 1, 0),
+                new(0, 1, 0)
+            }
+        };
+        Vector3Int size;
 
-        public AdaptiveContour(Func<float3, float> densityFunction) {
+        public AdaptiveContour(Func<Vector3, float> densityFunction, Vector3Int size) {
             this.pointDensityData = new Dictionary<Vector3, Point>();
             this.densityFunction = densityFunction;
+            this.size = size;
         }
 
-        public void PopulateDensityData(Vector3Int size, Vector3 offset) {
+        public void PopulateDensityData() {
             foreach (Vector3 coordinates in Volume(size)) {
-                float density = densityFunction(coordinates + offset);
-                pointDensityData[coordinates + offset] = new Point(coordinates + offset, density);
+                float density = densityFunction(coordinates);
+                pointDensityData[coordinates] = new Point(coordinates, density);
             }
         }
 
-        public List<Vector3> RunContouring() {
+        public Mesh RunContouring() {
             Mesh mesh = new Mesh();
             List<Vector3> vertices = new List<Vector3>();
             Dictionary<Vector3, int> vertexIndices = new Dictionary<Vector3, int>();
-            List<Quad> faces = new List<Quad>();
+            List<int> faces;
+            List<Vector3> normals;
 
-            foreach (Point point in pointDensityData.Values) {
+            foreach (Vector3 coordinates in Volume(size)) {
+                Point point = pointDensityData[coordinates];
                 Point[,,] octet = GetNeighbouringOctet(point);
                 List<Vector3> transitions = CalculateTransitions(octet);
 
                 if (transitions.Count != 0) {
-                    List<Vector3> normals = CalculateNormals(transitions);
-                    Vector3 vertex = ParticleDescent(point.coordinates, transitions, normals);
+                    List<Vector3> gradients = CalculateNormals(transitions);
+                    Vector3 vertex = ParticleDescent(coordinates, transitions, gradients);
                     vertices.Add(vertex);
-                    vertexIndices[vertex] = vertices.Count;
+                    vertexIndices[coordinates] = vertices.Count - 1;
                 }
             }
-            //foreach (Vector3 vertex in vertices) {
-            //    // Calculate quads
 
-            //}
-            return vertices;
+            faces = GenerateFaces(vertexIndices);
+
+            mesh.vertices = vertices.ToArray();
+            mesh.triangles = faces.ToArray();
+            mesh.RecalculateNormals();
+
+            return mesh;
+        }
+
+        List<int> GenerateFaces(Dictionary<Vector3, int> vertexIndices) {
+            Vector3[] offsets = new Vector3[3] { Vector3.right, Vector3.up, Vector3.forward };
+            List<int> faces = new List<int>();
+
+            foreach (Vector3 coordinates in Volume(size)) {
+                for (int axis = 0; axis < offsets.Length; ++axis) {
+                    Vector3 offsetCoordinates = coordinates + offsets[axis];
+                    if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
+                        continue;
+                    }
+                    bool inside = pointDensityData[coordinates].Exists;
+                    bool outside = pointDensityData[offsetCoordinates].Exists;
+                    if (inside != outside) {
+                        int[] quad = GenerateQuad(coordinates, axis, vertexIndices);
+                        if (outside) {
+                            Array.Reverse(quad);
+                        }
+                        faces.AddRange(quad);
+                    }
+                }
+            }
+
+            return faces;
+        }
+
+        int[] GenerateQuad(Vector3 coordinates, int axis, Dictionary<Vector3, int> vertexIndices) {
+            int[] quad = new int[6];
+
+            for (int i = 0; i < quad.Length; ++i) {
+                Vector3 index = coordinates - cubicOffsets[axis, i];
+                quad[i] = vertexIndices[index];
+            }
+
+            return quad;
         }
 
         float Interpolate(float a, float b) {
@@ -55,11 +128,10 @@ namespace TerrainGenerator {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
                         Vector3 vertex = point.coordinates + new Vector3(dx, dy, dz);
-                        if (pointDensityData.ContainsKey(vertex)) {
-                            octet[dx, dy, dz] = pointDensityData[vertex];
-                        } else {
-                            octet[dx, dy, dz] = new Point(vertex, densityFunction(vertex));
+                        if (!pointDensityData.ContainsKey(vertex)) {
+                            pointDensityData[vertex] = new Point(vertex, densityFunction(vertex));
                         }
+                        octet[dx, dy, dz] = pointDensityData[vertex];
                     }
                 }
             }
@@ -159,24 +231,6 @@ namespace TerrainGenerator {
                         yield return new Vector3Int(x, y, z);
                     }
                 }
-            }
-        }
-    }
-
-    struct Quad {
-        public Vector3 a;
-        public Vector3 b;
-        public Vector3 c;
-        public Vector3 d;
-
-        public Vector3 this[int i] {
-            get {
-                return i switch {
-                    0 => a,
-                    1 => b,
-                    2 => c,
-                    _ => d,
-                };
             }
         }
     }

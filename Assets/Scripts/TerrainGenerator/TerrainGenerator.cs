@@ -36,8 +36,6 @@ namespace TerrainGenerator {
         void UpdateMesh() {
             if (Application.isPlaying || (!Application.isPlaying && updateInEditMode)) {
                 GenerateMesh();
-                RunDestroyQueue();
-                CreatePointQueue();
             }
         }
 
@@ -72,20 +70,25 @@ namespace TerrainGenerator {
             while (pointsToCreate.Count > 0) {
                 Vector3 coordinates = pointsToCreate.Dequeue();
                 string name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
-                GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
+                GameObject point = Instantiate<GameObject>(pointPrefab);
                 point.name = name;
                 point.transform.parent = pointHolder.transform;
+                point.transform.SetLocalPositionAndRotation(coordinates, Quaternion.identity);
             }
         }
 
         void GenerateMesh() {
             CreatePointHolder();
             EnqueueDestroyPoints();
-            AdaptiveContour generator = new AdaptiveContour(x => (sampleFunction(x * scale) + 1) / 2 - level);
-            generator.PopulateDensityData(size, chunkOffset * size);
-            foreach (Vector3 point in generator.RunContouring()) {
-                EnqueueCreatePoint(point);
-            }
+            AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
+            generator.PopulateDensityData();
+            Mesh mesh = generator.RunContouring();
+            pointHolder.transform.position = size * chunkOffset;
+            pointHolder.GetComponent<MeshFilter>().mesh = mesh;
+        }
+
+        float SampleFunction(Vector3 x) {
+            return (sampleFunction((x + chunkOffset * size) * scale) + 1) / 2 - level;
         }
 
         void CreatePointHolder() {
@@ -94,6 +97,9 @@ namespace TerrainGenerator {
                     pointHolder = GameObject.Find(pointHolderName);
                 } else {
                     pointHolder = new GameObject(pointHolderName);
+                    pointHolder.AddComponent<MeshFilter>();
+                    pointHolder.AddComponent<MeshRenderer>();
+                    pointHolder.GetComponent<MeshRenderer>().material = Resources.Load<Material>("Prefabs/White");
                 }
             }
         }
