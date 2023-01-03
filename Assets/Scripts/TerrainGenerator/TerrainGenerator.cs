@@ -49,7 +49,8 @@ namespace TerrainGenerator {
 
         void EnqueueDestroyPoints() {
             for (int i = 0; i < pointHolder.transform.childCount; ++i) {
-                pointsToDestroy.Enqueue(pointHolder.transform.GetChild(i).gameObject);
+                GameObject point = pointHolder.transform.GetChild(i).gameObject;
+                pointsToDestroy.Enqueue(point);
             }
         }
 
@@ -61,16 +62,19 @@ namespace TerrainGenerator {
             GameObject pointPrefab = LoadPrefab();
             while (pointsToCreate.Count > 0) {
                 Vector3 coordinates = pointsToCreate.Dequeue();
-                GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
-                point.name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
-                point.transform.parent = pointHolder.transform;
+                string name = $"Point ({coordinates.x} {coordinates.y} {coordinates.z})";
+                if (!GameObject.Find(name)) {
+                    GameObject point = Instantiate<GameObject>(pointPrefab, coordinates, Quaternion.identity);
+                    point.name = name;
+                    point.transform.parent = pointHolder.transform;
+                }
             }
         }
 
         void GenerateMesh() {
             CreatePointHolder();
             EnqueueDestroyPoints();
-            AdaptiveCountour generator = new AdaptiveCountour(sampleFunction);
+            AdaptiveContour generator = new AdaptiveContour(x => sampleFunction(x * scale) - level);
             generator.PopulateDensityData(size);
             foreach (Vector3 point in generator.RunContouring()) {
                 EnqueueCreatePoint(point);

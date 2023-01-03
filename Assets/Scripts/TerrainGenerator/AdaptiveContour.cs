@@ -5,11 +5,12 @@ using UnityEngine;
 using Unity.Mathematics;
 
 namespace TerrainGenerator {
-    public class AdaptiveCountour {
+    public class AdaptiveContour {
         Dictionary<Vector3, Point> pointDensityData;
         readonly Func<float3, float> densityFunction;
 
-        public AdaptiveCountour(Func<float3, float> densityFunction) {
+        public AdaptiveContour(Func<float3, float> densityFunction) {
+            pointDensityData = new Dictionary<Vector3, Point>();
             this.densityFunction = densityFunction;
         }
 
@@ -50,10 +51,12 @@ namespace TerrainGenerator {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
                         Vector3 vertex = point.coordinates + new Vector3(dx, dy, dz);
-                        if (!pointDensityData.ContainsKey(vertex)) {
-                            pointDensityData[vertex] = new Point(vertex, densityFunction(vertex));
+                        if (pointDensityData.ContainsKey(vertex)) {
+                            octet[dx, dy, dz] = pointDensityData[vertex];
+                        } else {
+                            octet[dx, dy, dz] = new Point(vertex, densityFunction(vertex));
                         }
-                        octet[dx, dy, dz] = pointDensityData[vertex];
+                        
                     }
                 }
             }
@@ -143,9 +146,9 @@ namespace TerrainGenerator {
             return new Vector3(nx, ny, nz).normalized;
         }
         IEnumerable<Vector3Int> Volume(Vector3Int size) {
-            for (int x = 0; x <= size.x; ++x) {
-                for (int y = 0; y <= size.y; ++y) {
-                    for (int z = 0; z <= size.z; ++z) {
+            for (int x = 0; x < size.x + 1; ++x) {
+                for (int y = 0; y < size.y + 1; ++y) {
+                    for (int z = 0; z < size.z + 1; ++z) {
                         yield return new Vector3Int(x, y, z);
                     }
                 }
