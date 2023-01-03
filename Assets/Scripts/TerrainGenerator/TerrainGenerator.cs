@@ -10,7 +10,7 @@ namespace TerrainGenerator {
     public class TerrainGenerator : MonoBehaviour {
         [Range(0.0f, 1.0f)]
         public float level = 0.5f;
-        [Range(0.05f, 0.2f)]
+        [Range(0.01f, 0.2f)]
         public float scale = 0.1f;
         public Vector3Int size = new Vector3Int(16, 16, 16);
 
@@ -72,7 +72,7 @@ namespace TerrainGenerator {
         void GenerateMesh() {
             CreatePointHolder();
             EnqueueDestroyPoints();
-            AdaptiveContour generator = new AdaptiveContour(x => sampleFunction(x * scale) - level);
+            AdaptiveContour generator = new AdaptiveContour(x => (sampleFunction(x * scale) + 1) / 2 - level);
             generator.PopulateDensityData(size);
             foreach (Vector3 point in generator.RunContouring()) {
                 EnqueueCreatePoint(point);
