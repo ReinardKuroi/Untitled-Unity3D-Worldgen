@@ -72,14 +72,15 @@ namespace TerrainGenerator {
                             if (chunk == null) {
                                 chunk = chunkObject.AddComponent<Chunk>();
                             }
+                            chunk.Setup(material);
                         }
                         chunk.Coordinates = new Vector3Int(vectorX, vectorY, vectorZ);
                         chunk.Size = size;
                         chunk.name = $"Chunk ({chunk.Coordinates})";
                         chunk.transform.position = chunk.Coordinates * chunk.Size;
                         chunk.transform.parent = chunkRoot.transform;
-                        chunk.Setup(material);
-                        float SampleFunction(Vector3 x) => (noise.snoise((x + chunk.Coordinates * chunk.Size) * scale) + 1) / 2 - level;
+                        //float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size);
+                        float SampleFunction(Vector3 x) => Perlin2D(x, chunk.Coordinates * chunk.Size);
                         AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
                         chunk.mesh = generator.RunContouring(chunk.mesh);
                     }
@@ -95,6 +96,16 @@ namespace TerrainGenerator {
                     chunkRoot = new GameObject(chunkRootName);
                 }
             }
+        }
+
+        float PerlinOffset(Vector3 x, Vector3 offset) {
+            x += offset;
+            return (noise.snoise(x * scale) + 1) / 2 - level;
+        }
+
+        float Perlin2D(Vector3 x, Vector3 offset) {
+            x += offset;
+            return (noise.snoise(new float2(x.x, x.z) * scale) - ((x.y / size.y * size.y / 1.5f) - size.y * 0.2f) + 1) / 2 - level;
         }
     }
 }

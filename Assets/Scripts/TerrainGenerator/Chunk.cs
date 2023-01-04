@@ -9,8 +9,8 @@ namespace TerrainGenerator {
         public Mesh mesh;
         MeshFilter meshFilter;
         MeshRenderer meshRenderer;
-        MeshCollider meshCollider;
-        readonly bool generateCollider = false;
+        public MeshCollider meshCollider;
+        readonly bool generateCollider = true;
 
         public static int CalculateHash(int x, int y, int z) {
             return (x * 73856093 ^ y * 19349663 ^ z * 83492791) % int.MaxValue;
@@ -43,11 +43,13 @@ namespace TerrainGenerator {
                 mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
                 meshFilter.sharedMesh = mesh;
             }
+            
 
             if (generateCollider) {
                 if (meshCollider.sharedMesh == null) {
                     meshCollider.sharedMesh = mesh;
                 }
+                meshCollider.enabled = false;
                 meshCollider.enabled = true;
             }
         }
