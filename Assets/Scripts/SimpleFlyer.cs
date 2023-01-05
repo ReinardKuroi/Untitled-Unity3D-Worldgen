@@ -126,7 +126,7 @@ public class SimpleFlyer : MonoBehaviour
 
     void GUIDrawReticles() {
         bool headingTowards = (Vector3.Dot(rBody.velocity, transform.forward) >= 0);
-        Vector3 velocityHeading = Quaternion.LookRotation(rBody.velocity).eulerAngles;
+        Vector3 velocityHeading = rBody.velocity.magnitude > 0 ? Quaternion.LookRotation(rBody.velocity).eulerAngles : new Vector3();
         if (rBody.velocity.magnitude > 0.01f && headingTowards) {
             velocityReticle.gameObject.SetActive(true);
         } else {
