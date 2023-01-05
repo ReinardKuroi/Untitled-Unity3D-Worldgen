@@ -27,6 +27,10 @@ namespace TerrainGenerator {
         bool settingsUpdated;
         private bool DynamicGeneration = false;
 
+        private void Awake() {
+            UpdateMesh();
+        }
+
         void Update() {
             if (settingsUpdated) {
                 UpdateMesh();
