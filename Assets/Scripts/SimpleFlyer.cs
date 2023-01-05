@@ -92,8 +92,14 @@ public class SimpleFlyer : MonoBehaviour
         rotation.y = Mathf.Clamp(rotation.y, -89.998f, 89.998f);
         transform.eulerAngles = Vector3.Lerp(transform.eulerAngles, new Vector3(rotation.y, rotation.x, 0f), Time.deltaTime * 600);
 
-        if (holdPosition && rBody.velocity.magnitude > 0.01f) {
-            movementDirection = -rBody.velocity.normalized * Mathf.Sqrt(rBody.velocity.magnitude);
+        if (holdPosition) {
+            if (rBody.velocity.magnitude > 0.05f) {
+                movementDirection = -rBody.velocity.normalized * Mathf.Sqrt(rBody.velocity.magnitude);
+            } else {
+                movementDirection = Vector3.zero;
+                rBody.velocity = Vector3.zero;
+                rBody.angularVelocity = Vector3.zero;
+            }
         } else {
             movementDirection = transform.right * input.x + transform.forward * input.y;
         }
