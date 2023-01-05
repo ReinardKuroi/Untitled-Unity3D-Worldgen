@@ -73,12 +73,12 @@ public class SimpleFlyer : MonoBehaviour
     }
 
     void HandleMovement() {
-        rotation += mouseInput * Time.fixedDeltaTime * 360;
+        rotation += mouseInput;
         rotation.y = Mathf.Clamp(rotation.y, -89.998f, 89.998f);
-        transform.eulerAngles = new Vector3(rotation.y, rotation.x, 0f);
+        transform.eulerAngles = Vector3.Lerp(transform.eulerAngles, new Vector3(rotation.y, rotation.x, 0f), 10);
 
         movementDirection = transform.right * input.x + transform.forward * input.y;
-        rBody.AddForce(movementDirection * Time.fixedDeltaTime * speed * 100, ForceMode.Acceleration);
+        rBody.AddForce(movementDirection * speed, ForceMode.Acceleration);
     }
 
     void DrawEngineTrail() {
@@ -99,8 +99,8 @@ public class SimpleFlyer : MonoBehaviour
         } else {
             velocityReticle.gameObject.SetActive(false);
         }
-        velocityReticle.position = RectTransformUtility.WorldToScreenPoint(Camera.main, transform.position + rBody.velocity.normalized * 3);
-        headingReticle.position = RectTransformUtility.WorldToScreenPoint(Camera.main, transform.position + transform.forward.normalized * 3);
+        velocityReticle.position = Vector2.Lerp(velocityReticle.position, RectTransformUtility.WorldToScreenPoint(Camera.main, transform.position + rBody.velocity.normalized * 3), Time.deltaTime * 10);
+        headingReticle.position = Vector2.Lerp(headingReticle.position, RectTransformUtility.WorldToScreenPoint(Camera.main, transform.position + transform.forward.normalized * 3), Time.deltaTime * 10);
         speedReadout.text = $"SPD: {(headingTowards ? rBody.velocity.magnitude : -rBody.velocity.magnitude),6:0.00} MS\n" +
             $"HDX: {velocityHeading.x,6:0.00} DG\n" +
             $"HDY {velocityHeading.y,6:0.00} DG\n" +
