@@ -14,11 +14,14 @@ namespace TerrainGenerator {
         [Header("Map dimensions")]
         public Vector3Int mapStart = new Vector3Int();
         public Vector3Int mapEnd = new Vector3Int();
+        [Header("Map seed")]
+        public int mapSeed = 0;
+        Vector3 mapOffset = new();
         [Header("Chunk parameters")]
-        [Range(0.0f, 1.0f)]
-        public float level = 0.5f;
-        [Range(0.01f, 0.2f)]
-        public float scale = 0.1f;
+        [SerializeField]
+        [Range(0f, 1f)]
+        public float seaLevel = 0.5f;
+        public PerlinNoiseParameters noiseParameters = new();
         public Vector3Int size = new Vector3Int(16, 16, 16);
 
         const string chunkRootName = "Chunk Root";
@@ -40,12 +43,26 @@ namespace TerrainGenerator {
 
         void UpdateMesh() {
             if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
+                SetMapSeed();
+                SetMapOffset();
                 GenerateMesh();
             }
         }
 
         private void OnValidate() {
             settingsUpdated = true;
+        }
+
+        void SetMapSeed() {
+            if (mapSeed == 0) {
+                System.Random random = new();
+                mapSeed = random.Next();
+            }
+        }
+
+        void SetMapOffset() {
+            System.Random seededMapCoords = new(mapSeed);
+            mapOffset = new Vector3Int(seededMapCoords.Next() % 2 << 16, seededMapCoords.Next() % 2 << 16, seededMapCoords.Next() % 2 << 16);
         }
 
         void GenerateMesh() {
@@ -87,9 +104,11 @@ namespace TerrainGenerator {
                         chunk.transform.localRotation = Quaternion.identity;
                         //float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size);
                         //float SampleFunction(Vector3 x) => Perlin2D(x, chunk.Coordinates * chunk.Size);
-                        float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size)
+                        /*float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size)
                             * (SphereDensity(x, chunk.Coordinates * chunk.Size, 42)
-                            + SphereDensity(x, chunk.Coordinates * chunk.Size, 35));
+                            + SphereDensity(x, chunk.Coordinates * chunk.Size, 35));*/
+                        float SampleFunction(Vector3 x) => SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
+                            + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
                         AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
                         chunk.mesh = generator.RunContouring(chunk.mesh);
                     }
@@ -109,19 +128,40 @@ namespace TerrainGenerator {
             }
         }
 
-        float PerlinOffset(Vector3 x, Vector3 offset) {
+        float SphereDensity(Vector3 x, Vector3 offset, float rad) {
             x += offset;
-            return (noise.snoise(x * scale) + 1) / 2 - level;
+            return 1/(1 + Mathf.Exp(x.magnitude - rad)) - 0.5f;
         }
 
-        float SphereDensity(Vector3 x, Vector3 offset, int rad) {
-            x += offset;
-            return 1 / (1 + math.exp((x.x * x.x + x.y * x.y + x.z * x.z) - rad * rad));
-        }
+        float Perlin(Vector3 x, Vector3 offset, PerlinNoiseParameters parameters) {
+            float cumulativeNoise = 0;
+            float cumulativeAmplitude = 0;
 
-        float Perlin2D(Vector3 x, Vector3 offset) {
-            x += offset;
-            return (noise.snoise(new float2(x.x, x.z) * scale) - ((x.y / size.y * size.y / 1.5f) - size.y * 0.2f) + 1) / 2 - level;
+            float frequency = parameters.frequency;
+            float persistence = parameters.persistence;
+            float lacunarity = parameters.lacunarity;
+            float amplitude = parameters.amplitude;
+            int octaves = parameters.octaves;
+
+            x = x + offset + mapOffset;
+
+            for (int i = 0; i < octaves; ++i) {
+                cumulativeNoise = noise.snoise(x * frequency) * amplitude;
+                cumulativeAmplitude += amplitude;
+                amplitude *= persistence;
+                frequency *= lacunarity;
+            }
+
+            return cumulativeNoise * 0.5f / cumulativeAmplitude - seaLevel;
         }
+    }
+
+    [System.Serializable]
+    public struct PerlinNoiseParameters {
+        public float frequency;
+        public float persistence;
+        public float lacunarity;
+        public float amplitude;
+        public int octaves;
     }
 }
