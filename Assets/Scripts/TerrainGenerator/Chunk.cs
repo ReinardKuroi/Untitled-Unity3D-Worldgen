@@ -49,6 +49,7 @@ namespace TerrainGenerator {
                 if (meshCollider.sharedMesh == null) {
                     meshCollider.sharedMesh = mesh;
                 }
+                gameObject.isStatic = false;
                 meshCollider.enabled = false;
                 meshCollider.enabled = true;
             }
