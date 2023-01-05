@@ -16,8 +16,10 @@ public class SimpleFlyer : MonoBehaviour
     Vector2 mouseInput;
     Vector2 rotation = new();
     Vector3 movementDirection;
+    bool holdPosition;
 
     ParticleSystem engineTrail;
+    AudioSource engineSound;
 
     RectTransform velocityReticle;
     RectTransform headingReticle;
@@ -31,13 +33,15 @@ public class SimpleFlyer : MonoBehaviour
     void Update()
     {
         HandleInput();
-        DrawEngineTrail();
+        HandleMovement();
     }
 
     void FixedUpdate() {
-        HandleMovement();
+        ApplyRigidbodyMovement();
     }
     void LateUpdate() {
+        DrawEngineTrail();
+        PlayEngineSound();
         GUIDrawReticles();
     }
 
@@ -48,6 +52,7 @@ public class SimpleFlyer : MonoBehaviour
         velocityReticle = GameObject.Find("Velocity Reticle").GetComponent<RectTransform>();
         headingReticle = GameObject.Find("Heading Reticle").GetComponent<RectTransform>();
         speedReadout = GameObject.Find("Speed Readout").GetComponent<Text>();
+        engineSound = GameObject.Find("Engine").GetComponent<AudioSource>();
     }
 
     void LockCursor() {
@@ -58,6 +63,12 @@ public class SimpleFlyer : MonoBehaviour
     void HandleInput() {
         mouseInput = new Vector2(Input.GetAxisRaw("Mouse X"), -1f * Input.GetAxisRaw("Mouse Y")) * sensitivity;
         input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized;
+
+        if (Input.GetKey(KeyCode.F)) {
+            holdPosition = true;
+        } else {
+            holdPosition = false;
+        }
 
         if (Input.GetKeyDown(KeyCode.Escape)) {
             Exit();
@@ -72,22 +83,38 @@ public class SimpleFlyer : MonoBehaviour
 #endif
     }
 
+    void ApplyRigidbodyMovement() {
+        rBody.AddForce(movementDirection * speed, ForceMode.Acceleration);
+    }
+
     void HandleMovement() {
         rotation += mouseInput;
         rotation.y = Mathf.Clamp(rotation.y, -89.998f, 89.998f);
-        transform.eulerAngles = Vector3.Lerp(transform.eulerAngles, new Vector3(rotation.y, rotation.x, 0f), 10);
+        transform.eulerAngles = Vector3.Lerp(transform.eulerAngles, new Vector3(rotation.y, rotation.x, 0f), Time.deltaTime * 600);
 
-        movementDirection = transform.right * input.x + transform.forward * input.y;
-        rBody.AddForce(movementDirection * speed, ForceMode.Acceleration);
+        if (holdPosition && rBody.velocity.magnitude > 0.01f) {
+            movementDirection = -rBody.velocity.normalized * Mathf.Sqrt(rBody.velocity.magnitude);
+        } else {
+            movementDirection = transform.right * input.x + transform.forward * input.y;
+        }
     }
 
     void DrawEngineTrail() {
         engineTrail.gameObject.transform.rotation = Quaternion.LookRotation(-transform.forward.normalized - movementDirection.normalized);
 
-        if (input.magnitude > 0 && !engineTrail.isPlaying) {
+        if (movementDirection.magnitude > 0) {
             engineTrail.Play();
-        } else if (input.magnitude == 0 && engineTrail.isPlaying) {
+        } else if (engineTrail.isPlaying) {
             engineTrail.Stop();
+        }
+    }
+
+    void PlayEngineSound() {
+        engineSound.pitch = Mathf.Clamp(rBody.velocity.magnitude / 10f + 0.8f, 0.8f, 2.5f);
+        if (movementDirection.magnitude > 0 && engineSound.volume == 0f) {
+            engineSound.volume = 1f;
+        } else if (movementDirection.magnitude == 0 && !(engineSound.volume == 0f)) {
+            engineSound.volume = 0f;
         }
     }
 
