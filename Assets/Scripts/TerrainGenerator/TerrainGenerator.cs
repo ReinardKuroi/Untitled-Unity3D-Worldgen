@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
+using System.Threading;
 
 namespace TerrainGenerator { 
 
@@ -79,19 +80,48 @@ namespace TerrainGenerator {
                 }
             }
 
-            for (int x = mapStart.x; x < mapEnd.x; ++x) {
-                for (int y = mapStart.y; y < mapEnd.y; ++y) {
-                    for (int z = mapStart.z; z < mapEnd.z; ++z) {
-                        CreateChunk(new Vector3Int(x, y, z));
-                    }
-                }
+            Dictionary<Chunk, AdaptiveContour> chunkGenerators = new();
+
+            Stack<Thread> generatorThreads = new();
+
+            foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
+                Chunk chunk = InitChunk(chunkPosition);
+
+                float SampleFunction(Vector3 x) =>
+                    SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
+                    + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
+                AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
+                chunkGenerators[chunk] = generator;
+            }
+
+            foreach (Chunk chunk in chunkGenerators.Keys) {
+                Thread generatorThread = new Thread(chunkGenerators[chunk].RunContouring);
+                generatorThreads.Push(generatorThread);
+                generatorThread.Name = $"{chunk.name}";
+                generatorThread.Start();
+                print($"Thread {generatorThread.Name} started");
+            }
+
+            while (generatorThreads.Count > 0) {
+                Thread generatorThread = generatorThreads.Pop();
+                generatorThread.Join();
+                print($"Thread {generatorThread.Name} finished");
+            }
+
+            foreach (Chunk chunk in chunkGenerators.Keys) {
+                chunkGenerators[chunk].SetMesh(chunk.mesh);
+                DisableChunkIfEmpty(chunk);
             }
         }
 
-        void CreateChunk(Vector3Int coordinates) {
-            Chunk chunk = InitChunk(coordinates);
-            GenerateChunkMesh(chunk);
-            DisableChunkIfEmpty(chunk);
+        IEnumerable<Vector3Int> IterateOverChunkGrid() {
+            for (int x = mapStart.x; x < mapEnd.x; ++x) {
+                for (int y = mapStart.y; y < mapEnd.y; ++y) {
+                    for (int z = mapStart.z; z < mapEnd.z; ++z) {
+                        yield return new Vector3Int(x, y, z);
+                    }
+                }
+            }
         }
 
         Chunk InitChunk(Vector3Int coordinates) {
@@ -113,16 +143,6 @@ namespace TerrainGenerator {
             chunk.transform.parent = chunkRoot.transform;
             chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
             chunk.transform.localRotation = Quaternion.identity;
-            return chunk;
-        }
-
-        Chunk GenerateChunkMesh(Chunk chunk) {
-            float SampleFunction(Vector3 x) => 
-                SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
-                + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
-            AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
-            generator.RunContouring();
-            generator.SetMesh(chunk.mesh);
             return chunk;
         }
 
