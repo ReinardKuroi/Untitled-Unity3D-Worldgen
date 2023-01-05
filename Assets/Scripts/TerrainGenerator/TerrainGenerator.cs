@@ -105,9 +105,9 @@ namespace TerrainGenerator {
 
             while (contouringThreads.Count > 0) {
                 while (activeContouringThreads.Count < MAX_THREADS) {
-                    Thread thread;
-                    if (contouringThreads.TryPop(out thread)) {
+                    if (contouringThreads.TryPop(out Thread thread)) {
                         thread.Start();
+                        print($"Thread {thread.Name} started");
                         activeContouringThreads.Push(thread);
                     } else {
                         break;

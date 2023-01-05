@@ -10923,18 +10923,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   updateInEditMode: 0
-  updateInPlayMode: 0
-  mapStart: {x: -2, y: -2, z: -2}
-  mapEnd: {x: 2, y: 2, z: 2}
+  updateInPlayMode: 1
+  mapStart: {x: -8, y: -8, z: -8}
+  mapEnd: {x: 8, y: 8, z: 8}
   mapSeed: 5256372
-  seaLevel: 0.4
+  seaLevel: 0.452
   noiseParameters:
-    frequency: 0.2
-    persistence: 0.8
-    lacunarity: 1.2
+    frequency: 0.04
+    persistence: 0.5
+    lacunarity: 2
     amplitude: 1
     octaves: 3
-  size: {x: 8, y: 8, z: 8}
+  chunkSize: {x: 4, y: 4, z: 4}
+  material: {fileID: 2100000, guid: 447293887155b8f44a6813e2bd966b4d, type: 2}
 --- !u!1 &1861458462
 GameObject:
   m_ObjectHideFlags: 0
