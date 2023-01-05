@@ -55,12 +55,14 @@ namespace TerrainGenerator {
             }
         }
 
-        public void Disable() {
+        public Chunk Disable() {
             if (!Application.isPlaying) {
                 DestroyImmediate(gameObject, false);
+                return null;
             } else {
                 mesh.Clear();
                 gameObject.SetActive(false);
+                return this;
             }
         }
     }
