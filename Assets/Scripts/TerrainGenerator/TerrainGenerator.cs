@@ -8,7 +8,9 @@ namespace TerrainGenerator {
 
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
-        public bool updateInEditMode = true;
+        public bool updateInEditMode = false;
+        public bool updateInPlayMode = false;
+
         [Header("Map dimensions")]
         public Vector3Int mapStart = new Vector3Int();
         public Vector3Int mapEnd = new Vector3Int();
@@ -22,7 +24,6 @@ namespace TerrainGenerator {
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
         Queue<Chunk> deadChunks = new Queue<Chunk>();
-        Queue<Chunk> aliveChunks = new Queue<Chunk>();
         bool settingsUpdated;
         private bool DynamicGeneration = false;
 
@@ -34,7 +35,7 @@ namespace TerrainGenerator {
         }
 
         void UpdateMesh() {
-            if (Application.isPlaying || (!Application.isPlaying && updateInEditMode)) {
+            if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
                 GenerateMesh();
             }
         }
@@ -77,10 +78,14 @@ namespace TerrainGenerator {
                         chunk.Coordinates = new Vector3Int(vectorX, vectorY, vectorZ);
                         chunk.Size = size;
                         chunk.name = $"Chunk ({chunk.Coordinates})";
-                        chunk.transform.position = chunk.Coordinates * chunk.Size;
                         chunk.transform.parent = chunkRoot.transform;
+                        chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
+                        chunk.transform.localRotation = Quaternion.identity;
                         //float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size);
-                        float SampleFunction(Vector3 x) => Perlin2D(x, chunk.Coordinates * chunk.Size);
+                        //float SampleFunction(Vector3 x) => Perlin2D(x, chunk.Coordinates * chunk.Size);
+                        float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size)
+                            * (SphereDensity(x, chunk.Coordinates * chunk.Size, 42)
+                            + SphereDensity(x, chunk.Coordinates * chunk.Size, 35));
                         AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
                         chunk.mesh = generator.RunContouring(chunk.mesh);
                     }
@@ -94,6 +99,7 @@ namespace TerrainGenerator {
                     chunkRoot = GameObject.Find(chunkRootName);
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
+                    chunkRoot.AddComponent<Rotator>();
                 }
             }
         }
@@ -101,6 +107,11 @@ namespace TerrainGenerator {
         float PerlinOffset(Vector3 x, Vector3 offset) {
             x += offset;
             return (noise.snoise(x * scale) + 1) / 2 - level;
+        }
+
+        float SphereDensity(Vector3 x, Vector3 offset, int rad) {
+            x += offset;
+            return 1 / (1 + math.exp((x.x * x.x + x.y * x.y + x.z * x.z) - rad * rad));
         }
 
         float Perlin2D(Vector3 x, Vector3 offset) {
