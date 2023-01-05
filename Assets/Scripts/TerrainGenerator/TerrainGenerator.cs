@@ -23,7 +23,7 @@ namespace TerrainGenerator {
         [Range(0f, 1f)]
         public float seaLevel = 0.5f;
         public PerlinNoiseParameters noiseParameters = new();
-        public Vector3Int size = new Vector3Int(16, 16, 16);
+        public Vector3Int chunkSize = new Vector3Int(16, 16, 16);
         public Material material;
 
         const string chunkRootName = "Chunk Root";
@@ -31,6 +31,7 @@ namespace TerrainGenerator {
         Queue<Chunk> deadChunks = new Queue<Chunk>();
         bool settingsUpdated;
         private bool DynamicGeneration = false;
+        private const int MAX_THREADS = 8;
 
         private void Awake() {
             UpdateMesh();
@@ -82,30 +83,42 @@ namespace TerrainGenerator {
 
             Dictionary<Chunk, AdaptiveContour> chunkGenerators = new();
 
-            Stack<Thread> generatorThreads = new();
 
             foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
                 Chunk chunk = InitChunk(chunkPosition);
 
                 float SampleFunction(Vector3 x) =>
-                    SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
+                    SphereDensity(x, chunk.Coordinates * chunk.Size, chunkSize.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
                     + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
-                AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
-                chunkGenerators[chunk] = generator;
+                chunkGenerators[chunk] = new AdaptiveContour(SampleFunction, chunkSize);
             }
+
+            Stack<Thread> contouringThreads = new();
+            Stack<Thread> activeContouringThreads = new();
 
             foreach (Chunk chunk in chunkGenerators.Keys) {
-                Thread generatorThread = new Thread(chunkGenerators[chunk].RunContouring);
-                generatorThreads.Push(generatorThread);
-                generatorThread.Name = $"{chunk.name}";
-                generatorThread.Start();
-                print($"Thread {generatorThread.Name} started");
+                Thread thread = new Thread(chunkGenerators[chunk].RunContouring);
+                contouringThreads.Push(thread);
+                thread.Name = $"{chunk.name}";
             }
 
-            while (generatorThreads.Count > 0) {
-                Thread generatorThread = generatorThreads.Pop();
-                generatorThread.Join();
-                print($"Thread {generatorThread.Name} finished");
+
+            while (contouringThreads.Count > 0) {
+                while (activeContouringThreads.Count < MAX_THREADS) {
+                    Thread thread;
+                    if (contouringThreads.TryPop(out thread)) {
+                        thread.Start();
+                        activeContouringThreads.Push(thread);
+                    } else {
+                        break;
+                    }
+                }
+
+                while (activeContouringThreads.Count > 0) {
+                    Thread thread = activeContouringThreads.Pop();
+                    thread.Join();
+                    print($"Thread {thread.Name} finished");
+                }
             }
 
             foreach (Chunk chunk in chunkGenerators.Keys) {
@@ -138,7 +151,7 @@ namespace TerrainGenerator {
                 chunk.Setup(material);
             }
             chunk.Coordinates = coordinates;
-            chunk.Size = size;
+            chunk.Size = chunkSize;
             chunk.name = $"Chunk ({chunk.Coordinates})";
             chunk.transform.parent = chunkRoot.transform;
             chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
@@ -161,7 +174,7 @@ namespace TerrainGenerator {
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
                     Rotator rotator = chunkRoot.AddComponent<Rotator>();
-                    rotator.speed = size.magnitude * 3f / 60f;
+                    rotator.speed = chunkSize.magnitude * 3f / 60f;
                 }
             }
         }
