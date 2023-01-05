@@ -3,11 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
+using System.Threading;
+
 
 namespace TerrainGenerator {
 
     public class AdaptiveContour {
-        Dictionary<Vector3, Point> pointDensityData;
         readonly Func<Vector3, float> densityFunction;
         readonly Vector3[,] cubicOffsets = new Vector3[3,6] {
             {
@@ -38,7 +39,12 @@ namespace TerrainGenerator {
                 new(0, 1, 0)
             }
         };
+
+        Dictionary<Vector3, Point> pointDensityData = new();
         Vector3Int size;
+        List<int> faces = new();
+        List<Vector3> vertices = new();
+        Dictionary<Vector3, int> vertexIndices = new ();
 
         float DensityFunction(Vector3 x) {
             return densityFunction(x);
@@ -57,13 +63,20 @@ namespace TerrainGenerator {
             }
         }
 
-        public Mesh RunContouring(Mesh mesh) {
-            List<int> faces;
-            List<Vector3> vertices = new List<Vector3>();
-            Dictionary<Vector3, int> vertexIndices = new Dictionary<Vector3, int>();
-
+        public void RunContouring() {
             PopulateDensityData();
+            GenerateVertices();
+            GenerateFaces();
+        }
 
+        public void SetMesh(Mesh mesh) {
+            mesh.Clear();
+            mesh.vertices = vertices.ToArray();
+            mesh.triangles = faces.ToArray();
+            mesh.RecalculateNormals();
+        }
+
+        void GenerateVertices() {
             foreach (Vector3 coordinates in Volume(size)) {
                 Point point = pointDensityData[coordinates];
                 Point[,,] octet = GetNeighbouringOctet(point);
@@ -76,20 +89,10 @@ namespace TerrainGenerator {
                     vertexIndices[coordinates] = vertices.Count - 1;
                 }
             }
-
-            faces = GenerateFaces(vertexIndices);
-
-            mesh.Clear();
-            mesh.vertices = vertices.ToArray();
-            mesh.triangles = faces.ToArray();
-            mesh.RecalculateNormals();
-
-            return mesh;
         }
 
-        List<int> GenerateFaces(Dictionary<Vector3, int> vertexIndices) {
+        void GenerateFaces() {
             Vector3[] offsets = new Vector3[3] { Vector3.right, Vector3.up, Vector3.forward };
-            List<int> faces = new List<int>();
 
             foreach (Vector3 coordinates in Volume(size)) {
                 for (int axis = 0; axis < offsets.Length; ++axis) {
@@ -108,8 +111,6 @@ namespace TerrainGenerator {
                     }
                 }
             }
-
-            return faces;
         }
 
         int[] GenerateQuad(Vector3 coordinates, int axis, Dictionary<Vector3, int> vertexIndices) {

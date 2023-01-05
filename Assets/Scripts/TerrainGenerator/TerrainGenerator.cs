@@ -121,7 +121,8 @@ namespace TerrainGenerator {
                 SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
                 + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
             AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
-            chunk.mesh = generator.RunContouring(chunk.mesh);
+            generator.RunContouring();
+            generator.SetMesh(chunk.mesh);
             return chunk;
         }
 
