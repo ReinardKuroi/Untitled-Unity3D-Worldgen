@@ -99,7 +99,8 @@ namespace TerrainGenerator {
                     chunkRoot = GameObject.Find(chunkRootName);
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
-                    chunkRoot.AddComponent<Rotator>();
+                    Rotator rotator = chunkRoot.AddComponent<Rotator>();
+                    rotator.speed = size.magnitude * 3f / 60f;
                 }
             }
         }
