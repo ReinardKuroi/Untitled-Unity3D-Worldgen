@@ -46,12 +46,14 @@ namespace TerrainGenerator {
             
 
             if (generateCollider) {
-                if (meshCollider.sharedMesh == null) {
-                    meshCollider.sharedMesh = mesh;
+                if (mesh.vertexCount != 0) {
+                    if (meshCollider.sharedMesh == null) {
+                        meshCollider.sharedMesh = mesh;
+                    }
+                    gameObject.isStatic = false;
+                    meshCollider.enabled = false;
+                    meshCollider.enabled = true;
                 }
-                gameObject.isStatic = false;
-                meshCollider.enabled = false;
-                meshCollider.enabled = true;
             }
         }
 
