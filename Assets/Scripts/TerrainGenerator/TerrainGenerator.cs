@@ -23,6 +23,7 @@ namespace TerrainGenerator {
         public float seaLevel = 0.5f;
         public PerlinNoiseParameters noiseParameters = new();
         public Vector3Int size = new Vector3Int(16, 16, 16);
+        public Material material;
 
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
@@ -73,45 +74,61 @@ namespace TerrainGenerator {
             CreateChunkRoot();
 
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                deadChunk.Disable();
-                if (Application.isPlaying) {
+                if (deadChunk.Disable()) {
                     deadChunks.Enqueue(deadChunk);
                 }
             }
 
-            Material material = Resources.Load<Material>("Prefabs/White");
-
-            for (int vectorX = mapStart.x; vectorX < mapEnd.x; ++vectorX) {
-                for (int vectorY = mapStart.y; vectorY < mapEnd.y; ++vectorY) {
-                    for (int vectorZ = mapStart.z; vectorZ < mapEnd.z; ++vectorZ) {
-                        Chunk chunk;
-                        if (deadChunks.Count > 0) {
-                            chunk = deadChunks.Dequeue();
-                            chunk.gameObject.SetActive(true);
-                        } else {
-                            GameObject chunkObject = new GameObject();
-                            chunk = chunkObject.GetComponent<Chunk>();
-                            if (chunk == null) {
-                                chunk = chunkObject.AddComponent<Chunk>();
-                            }
-                            chunk.Setup(material);
-                        }
-                        chunk.Coordinates = new Vector3Int(vectorX, vectorY, vectorZ);
-                        chunk.Size = size;
-                        chunk.name = $"Chunk ({chunk.Coordinates})";
-                        chunk.transform.parent = chunkRoot.transform;
-                        chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
-                        chunk.transform.localRotation = Quaternion.identity;
-                        //float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size);
-                        //float SampleFunction(Vector3 x) => Perlin2D(x, chunk.Coordinates * chunk.Size);
-                        /*float SampleFunction(Vector3 x) => PerlinOffset(x, chunk.Coordinates * chunk.Size)
-                            * (SphereDensity(x, chunk.Coordinates * chunk.Size, 42)
-                            + SphereDensity(x, chunk.Coordinates * chunk.Size, 35));*/
-                        float SampleFunction(Vector3 x) => SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
-                            + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
-                        AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
-                        chunk.mesh = generator.RunContouring(chunk.mesh);
+            for (int x = mapStart.x; x < mapEnd.x; ++x) {
+                for (int y = mapStart.y; y < mapEnd.y; ++y) {
+                    for (int z = mapStart.z; z < mapEnd.z; ++z) {
+                        CreateChunk(new Vector3Int(x, y, z));
                     }
+                }
+            }
+        }
+
+        void CreateChunk(Vector3Int coordinates) {
+            Chunk chunk = InitChunk(coordinates);
+            GenerateChunkMesh(chunk);
+            DisableChunkIfEmpty(chunk);
+        }
+
+        Chunk InitChunk(Vector3Int coordinates) {
+            Chunk chunk;
+            if (deadChunks.Count > 0) {
+                chunk = deadChunks.Dequeue();
+                chunk.gameObject.SetActive(true);
+            } else {
+                GameObject chunkObject = new GameObject();
+                chunk = chunkObject.GetComponent<Chunk>();
+                if (chunk == null) {
+                    chunk = chunkObject.AddComponent<Chunk>();
+                }
+                chunk.Setup(material);
+            }
+            chunk.Coordinates = coordinates;
+            chunk.Size = size;
+            chunk.name = $"Chunk ({chunk.Coordinates})";
+            chunk.transform.parent = chunkRoot.transform;
+            chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
+            chunk.transform.localRotation = Quaternion.identity;
+            return chunk;
+        }
+
+        Chunk GenerateChunkMesh(Chunk chunk) {
+            float SampleFunction(Vector3 x) => 
+                SphereDensity(x, chunk.Coordinates * chunk.Size, size.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
+                + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
+            AdaptiveContour generator = new AdaptiveContour(SampleFunction, size);
+            chunk.mesh = generator.RunContouring(chunk.mesh);
+            return chunk;
+        }
+
+        void DisableChunkIfEmpty(Chunk chunk) {
+            if (chunk.mesh.vertexCount == 0 || chunk.mesh.triangles.Length == 0) {
+                if (chunk.Disable()) {
+                    deadChunks.Enqueue(chunk);
                 }
             }
         }
