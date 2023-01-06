@@ -81,8 +81,8 @@ namespace TerrainGenerator {
                 List<Vector3> transitions = CalculateTransitions(octet);
 
                 if (transitions.Count != 0) {
-                    List<Vector3> gradients = CalculateNormals(transitions);
-                    Vector3 vertex = ParticleDescent(coordinates, transitions, gradients);
+                    List<Vector3> transitionGradients = CalculateTransitionGradients(transitions);
+                    Vector3 vertex = ParticleDescent(transitions, transitionGradients);
                     vertices.Add(vertex);
                     vertexIndices[coordinates] = vertices.Count - 1;
                 }
@@ -178,15 +178,15 @@ namespace TerrainGenerator {
             return transitions;
         }
 
-        List<Vector3> CalculateNormals(List<Vector3> transitions) {
-            List<Vector3> normals = new List<Vector3>();
+        List<Vector3> CalculateTransitionGradients(List<Vector3> transitions) {
+            List<Vector3> gradients = new List<Vector3>();
             foreach (Vector3 transition in transitions) {
-                normals.Add(ApproximateNormals(transition));
+                gradients.Add(ApproximateNormals(transition));
             }
-            return normals;
+            return gradients;
         }
 
-        private Vector3 ParticleDescent(Vector3Int coordinates, List<Vector3> transitions, List<Vector3> normals, float threshold = 0.00001f) {
+        private Vector3 ParticleDescent(List<Vector3> transitions, List<Vector3> gradients, float threshold = 0.00001f) {
             const int maxIterations = 50;
             int transitionsCount = transitions.Count;
             Vector3 centerPoint = new Vector3();
@@ -201,9 +201,9 @@ namespace TerrainGenerator {
 
                 for (int j = 0; j < transitionsCount; ++j) {
                     Vector3 transition = transitions[j];
-                    Vector3 normal = normals[j];
+                    Vector3 gradient = gradients[j];
 
-                    force += normal * - 1f * Vector3.Dot(normal, centerPoint - transition);
+                    force += -1f * Vector3.Dot(gradient, centerPoint - transition) * gradient;
                 }
 
                 float damping = 1 - (float)i / maxIterations;
