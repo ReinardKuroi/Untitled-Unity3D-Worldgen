@@ -38,7 +38,9 @@ namespace TerrainGenerator {
                 new(0, 1, 0)
             }
         };
-        readonly Dictionary<Vector3, Point> pointDensityData = new();
+        readonly Dictionary<Vector3Int, GridPoint> pointDensityData = new();
+        readonly Dictionary<Vector3Int, Octet> octets = new();
+        readonly Dictionary<(GridPoint, GridPoint),Vector3> transitionGradients = new();
         readonly List<int> faces = new();
         readonly List<Vector3> vertices = new();
         readonly Dictionary<Vector3, int> vertexIndices = new ();
@@ -54,14 +56,21 @@ namespace TerrainGenerator {
         }
 
         void PopulateDensityData() {
-            foreach (Vector3 coordinates in Volume(size, includeEdges: true)) {
-                float density = DensityFunction(coordinates);
-                pointDensityData[coordinates] = new Point(coordinates, density);
+            foreach (Vector3Int gridCoordinates in Volume(size, includeEdges: true)) {
+                float density = DensityFunction(gridCoordinates);
+                pointDensityData[gridCoordinates] = new GridPoint(gridCoordinates, density);
+            }
+        }
+
+        void GroupGirdPointsIntoOctets() {
+            foreach (Vector3Int gridCoordinates in Volume(size, includeEdges: false)) {
+                octets[gridCoordinates] = new Octet(gridCoordinates, GetNeighbouringOctet(pointDensityData[gridCoordinates]));
             }
         }
 
         public void RunContouring() {
             PopulateDensityData();
+            GroupGirdPointsIntoOctets();
             GenerateVertices();
             GenerateFaces();
         }
@@ -74,26 +83,25 @@ namespace TerrainGenerator {
         }
 
         void GenerateVertices() {
-            foreach (Vector3Int coordinates in Volume(size, includeEdges: false)) {
-                Point point = pointDensityData[coordinates];
-                Point[,,] octet = GetNeighbouringOctet(point);
-                List<Vector3> transitions = CalculateTransitions(octet);
+            foreach (Vector3Int gridCoordinates in Volume(size, includeEdges: false)) {
+                Octet octet = octets[gridCoordinates];
+                List<Transition> transitions = CalculateTransitions(octet.vertices);
 
                 if (transitions.Count != 0) {
-                    List<Vector3> transitionGradients = CalculateTransitionGradients(transitions);
-                    Vector3 vertex = ParticleDescent(transitions, transitionGradients);
+                    CalculateTransitionGradients(transitions);
+                    Vector3 vertex = ParticleDescent(transitions);
                     vertices.Add(vertex);
-                    vertexIndices[coordinates] = vertices.Count - 1;
+                    vertexIndices[gridCoordinates] = vertices.Count - 1;
                 }
             }
         }
 
         void GenerateFaces() {
-            Vector3[] offsets = new Vector3[3] { Vector3.right, Vector3.up, Vector3.forward };
+            Vector3Int[] offsets = new Vector3Int[3] { Vector3Int.right, Vector3Int.up, Vector3Int.forward };
 
-            foreach (Vector3 coordinates in Volume(size, includeEdges: false)) {
+            foreach (Vector3Int coordinates in Volume(size, includeEdges: false)) {
                 for (int axis = 0; axis < offsets.Length; ++axis) {
-                    Vector3 offsetCoordinates = coordinates + offsets[axis];
+                    Vector3Int offsetCoordinates = coordinates + offsets[axis];
                     if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
                         continue;
                     }
@@ -125,12 +133,12 @@ namespace TerrainGenerator {
             return a / (a - b);
         }
 
-        Point[,,] GetNeighbouringOctet(Point point) {
-            Point[,,] octet = new Point[2, 2, 2];
+        GridPoint[,,] GetNeighbouringOctet(GridPoint point) {
+            GridPoint[,,] octet = new GridPoint[2, 2, 2];
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
-                        Vector3 vertex = point.coordinates + new Vector3(dx, dy, dz);
+                        Vector3Int vertex = point.coordinates + new Vector3Int(dx, dy, dz);
                         octet[dx, dy, dz] = pointDensityData[vertex];
                     }
                 }
@@ -138,60 +146,61 @@ namespace TerrainGenerator {
             return octet;
         }
 
-        List<Vector3> CalculateTransitions(Point[,,] octet) {
-            List<Vector3> transitions = new();
-            Point point = octet[0, 0, 0];
+        List<Transition> CalculateTransitions(GridPoint[,,] octet) {
+            List<Transition> transitions = new();
+            GridPoint point = octet[0, 0, 0];
             // Along x axis
             for (int dy = 0; dy < 2; ++dy) {
                 for (int dz = 0; dz < 2; ++dz) {
-                    Point a = octet[0, dy, dz];
-                    Point b = octet[1, dy, dz];
+                    GridPoint a = octet[0, dy, dz];
+                    GridPoint b = octet[1, dy, dz];
                     if (a.Exists != b.Exists) {
                         float interpolateX = Interpolate(a.density, b.density);
-                        transitions.Add(point.coordinates + new Vector3(interpolateX, dy, dz));
+                        transitions.Add(new (a, b, point.coordinates + new Vector3(interpolateX, dy, dz)));
                     }
                 }
             }
             // Along y axis
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dz = 0; dz < 2; ++dz) {
-                    Point a = octet[dx, 0, dz];
-                    Point b = octet[dx, 1, dz];
+                    GridPoint a = octet[dx, 0, dz];
+                    GridPoint b = octet[dx, 1, dz];
                     if (a.Exists != b.Exists) {
                         float interpolateY = Interpolate(a.density, b.density);
-                        transitions.Add(point.coordinates + new Vector3(dx, interpolateY, dz));
+                        transitions.Add(new (a, b, point.coordinates + new Vector3(dx, interpolateY, dz)));
                     }
                 }
             }
             // Along z axis
             for (int dx = 0; dx < 2; ++dx) {
                 for (int dy = 0; dy < 2; ++dy) {
-                    Point a = octet[dx, dy, 0];
-                    Point b = octet[dx, dy, 1];
+                    GridPoint a = octet[dx, dy, 0];
+                    GridPoint b = octet[dx, dy, 1];
                     if (a.Exists != b.Exists) {
                         float interpolateZ = Interpolate(a.density, b.density);
-                        transitions.Add(point.coordinates + new Vector3(dx, dy, interpolateZ));
+                        transitions.Add(new (a, b, point.coordinates + new Vector3(dx, dy, interpolateZ)));
                     }
                 }
             }
             return transitions;
         }
 
-        List<Vector3> CalculateTransitionGradients(List<Vector3> transitions) {
-            List<Vector3> gradients = new();
-            foreach (Vector3 transition in transitions) {
-                gradients.Add(ApproximateNormals(transition));
+        void CalculateTransitionGradients(List<Transition> transitions) {
+            foreach (Transition transition in transitions) {
+                (GridPoint, GridPoint) transitionDirection = (transition.from, transition.to);
+                if (!transitionGradients.ContainsKey(transitionDirection)) {
+                    transitionGradients[transitionDirection] = ApproximateNormals(transition.transitionPoint);
+                }
             }
-            return gradients;
         }
 
-        private Vector3 ParticleDescent(List<Vector3> transitions, List<Vector3> gradients, float threshold = 0.00001f) {
+        private Vector3 ParticleDescent(List<Transition> transitions, float threshold = 0.00001f) {
             const int maxIterations = 50;
             int transitionsCount = transitions.Count;
             Vector3 centerPoint = new();
             
-            foreach (Vector3 transition in transitions) {
-                centerPoint += transition;
+            foreach (Transition transition in transitions) {
+                centerPoint += transition.transitionPoint;
             }
             centerPoint /= transitionsCount;
 
@@ -199,10 +208,11 @@ namespace TerrainGenerator {
                 Vector3 force = new();
 
                 for (int j = 0; j < transitionsCount; ++j) {
-                    Vector3 transition = transitions[j];
-                    Vector3 gradient = gradients[j];
+                    Transition transition = transitions[j];
+                    Vector3 transitionPoint = transition.transitionPoint;
+                    Vector3 gradient = transitionGradients[(transition.from, transition.to)];
 
-                    force += -1f * Vector3.Dot(gradient, centerPoint - transition) * gradient;
+                    force += -1f * Vector3.Dot(gradient, centerPoint - transitionPoint) * gradient;
                 }
 
                 float damping = 1 - (float)i / maxIterations;
@@ -233,6 +243,54 @@ namespace TerrainGenerator {
                     }
                 }
             }
+        }
+    }
+
+    struct GridPoint {
+        public readonly Vector3Int coordinates;
+        public readonly float density;
+        public bool Exists { get { return density > 0; } }
+
+        public GridPoint(Vector3Int coordinates, float density) {
+            this.coordinates = coordinates;
+            this.density = density;
+        }
+
+        public override string ToString() {
+            return $"{coordinates}";
+        }
+    }
+
+    struct Octet {
+        public readonly Vector3Int coordinates;
+        public readonly GridPoint[,,] vertices;
+
+        public Octet(Vector3Int coordinates, GridPoint[,,] vertices) {
+            this.coordinates = coordinates;
+            this.vertices = vertices;
+        }
+
+
+    }
+
+    struct Vertex {
+        public readonly Vector3Int gridCoordinates;
+        public readonly List<Transition> transitions;
+    }
+
+    struct Transition {
+        public readonly GridPoint from;
+        public readonly GridPoint to;
+        public readonly Vector3 transitionPoint;
+
+        public Transition(GridPoint from, GridPoint to, Vector3 transitionPoint) {
+            this.from = from;
+            this.to = to;
+            this.transitionPoint = transitionPoint;
+        }
+
+        public override string ToString() {
+            return $"{from} -> {to}: {transitionPoint}";
         }
     }
 }
