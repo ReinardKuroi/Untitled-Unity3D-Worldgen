@@ -56,7 +56,7 @@ namespace TerrainGenerator {
         }
 
         void PopulateDensityData() {
-            foreach (Vector3 coordinates in Volume(size)) {
+            foreach (Vector3 coordinates in Volume(size, includeEdges: true)) {
                 float density = DensityFunction(coordinates);
                 pointDensityData[coordinates] = new Point(coordinates, density);
             }
@@ -76,7 +76,7 @@ namespace TerrainGenerator {
         }
 
         void GenerateVertices() {
-            foreach (Vector3 coordinates in Volume(size)) {
+            foreach (Vector3 coordinates in Volume(size, includeEdges: false)) {
                 Point point = pointDensityData[coordinates];
                 Point[,,] octet = GetNeighbouringOctet(point);
                 List<Vector3> transitions = CalculateTransitions(octet);
@@ -93,7 +93,7 @@ namespace TerrainGenerator {
         void GenerateFaces() {
             Vector3[] offsets = new Vector3[3] { Vector3.right, Vector3.up, Vector3.forward };
 
-            foreach (Vector3 coordinates in Volume(size)) {
+            foreach (Vector3 coordinates in Volume(size, includeEdges: false)) {
                 for (int axis = 0; axis < offsets.Length; ++axis) {
                     Vector3 offsetCoordinates = coordinates + offsets[axis];
                     if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
@@ -133,9 +133,6 @@ namespace TerrainGenerator {
                 for (int dy = 0; dy < 2; ++dy) {
                     for (int dz = 0; dz < 2; ++dz) {
                         Vector3 vertex = point.coordinates + new Vector3(dx, dy, dz);
-                        if (!pointDensityData.ContainsKey(vertex)) {
-                            pointDensityData[vertex] = new Point(vertex, DensityFunction(vertex));
-                        }
                         octet[dx, dy, dz] = pointDensityData[vertex];
                     }
                 }
@@ -229,10 +226,11 @@ namespace TerrainGenerator {
             Vector3 gradient = new Vector3(nx, ny, nz);
             return Vector3.Normalize(-gradient);
         }
-        IEnumerable<Vector3Int> Volume(Vector3Int size) {
-            for (int x = 0; x < size.x + 1; ++x) {
-                for (int y = 0; y < size.y + 1; ++y) {
-                    for (int z = 0; z < size.z + 1; ++z) {
+        IEnumerable<Vector3Int> Volume(Vector3Int size, bool includeEdges = true) {
+            size += includeEdges ? Vector3Int.one : Vector3Int.zero;
+            for (int x = 0; x <= size.x; ++x) {
+                for (int y = 0; y <= size.y; ++y) {
+                    for (int z = 0; z <= size.z; ++z) {
                         yield return new Vector3Int(x, y, z);
                     }
                 }
