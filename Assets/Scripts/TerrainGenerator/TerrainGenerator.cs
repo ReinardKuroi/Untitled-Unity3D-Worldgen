@@ -97,7 +97,14 @@ namespace TerrainGenerator {
             Stack<Thread> activeContouringThreads = new();
 
             foreach (Chunk chunk in chunkGenerators.Keys) {
-                Thread thread = new Thread(chunkGenerators[chunk].RunContouring);
+                Thread thread = new Thread(() =>
+                {
+                    try {
+                        chunkGenerators[chunk].RunContouring();
+                    } catch (Exception exc) {
+                        Debug.LogError(exc);
+                    }
+                });
                 contouringThreads.Push(thread);
                 thread.Name = $"{chunk.name}";
             }
@@ -107,7 +114,7 @@ namespace TerrainGenerator {
                 while (activeContouringThreads.Count < MAX_THREADS) {
                     if (contouringThreads.TryPop(out Thread thread)) {
                         thread.Start();
-                        print($"Thread {thread.Name} started");
+                        Debug.Log($"Thread {thread.Name} started");
                         activeContouringThreads.Push(thread);
                     } else {
                         break;
@@ -117,7 +124,7 @@ namespace TerrainGenerator {
                 while (activeContouringThreads.Count > 0) {
                     Thread thread = activeContouringThreads.Pop();
                     thread.Join();
-                    print($"Thread {thread.Name} finished");
+                    Debug.Log($"Thread {thread.Name} finished");
                 }
             }
 
