@@ -24,7 +24,7 @@ namespace TerrainGenerator {
         [Range(0, 100)]
         public int seaLevel = 50;
         public PerlinNoiseParameters noiseParameters = new();
-        public Vector3Int chunkSize = new(16, 16, 16);
+        public int chunkSize = 16;
         public Material material;
 
         const string chunkRootName = "Chunk Root";
@@ -91,7 +91,7 @@ namespace TerrainGenerator {
                 Chunk chunk = InitChunk(chunkPosition);
 
                 Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                float radius = chunkSize.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
+                float radius = chunkSize * Mathf.Sqrt(3) * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
                 float SampleFunction(Vector3 x) =>
                     SphereDensity(x, chunkOffset, radius)
                     + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
@@ -187,7 +187,7 @@ namespace TerrainGenerator {
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
                     Rotator rotator = chunkRoot.AddComponent<Rotator>();
-                    rotator.speed = chunkSize.magnitude * 3f / 60f;
+                    rotator.speed = chunkSize * 3f / 60f;
                 }
             }
         }

@@ -44,15 +44,15 @@ namespace TerrainGenerator {
         readonly List<int> faces = new();
         readonly List<Vector3> vertices = new();
         readonly Dictionary<int3, int> vertexIndices = new();
-        int3 size;
+        int size;
 
         float DensityFunction(Vector3 x) {
             return densityFunction(x);
         }
 
-        public AdaptiveContour(Func<Vector3, float> densityFunction, Vector3Int size) {
+        public AdaptiveContour(Func<Vector3, float> densityFunction, int size) {
             this.densityFunction = densityFunction;
-            this.size = new(size.x, size.y, size.z);
+            this.size = size;
         }
 
         void PopulateDensityData() {
@@ -176,15 +176,13 @@ namespace TerrainGenerator {
             return Vector3.Normalize(-gradient);
         }
 
-        IEnumerable<int3> Volume(int3 size, bool includeEdges = true) {
+        IEnumerable<int3> Volume(int size, bool includeEdges = true) {
             if (includeEdges) {
-                ++size.x;
-                ++size.y;
-                ++size.z;
+                ++size;
             }
-            for (int x = 0; x <= size.x; ++x) {
-                for (int y = 0; y <= size.y; ++y) {
-                    for (int z = 0; z <= size.z; ++z) {
+            for (int x = 0; x <= size; ++x) {
+                for (int y = 0; y <= size; ++y) {
+                    for (int z = 0; z <= size; ++z) {
                         yield return new int3(x, y, z);
                     }
                 }

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TerrainGenerator {
     public class Chunk : MonoBehaviour {
         public Vector3Int Coordinates { get; set; }
-        public Vector3Int Size { get; set; }
+        public int Size { get; set; }
         public Mesh mesh;
         MeshFilter meshFilter;
         MeshRenderer meshRenderer;
