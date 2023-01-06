@@ -39,8 +39,9 @@ namespace TerrainGenerator {
 
             mesh = meshFilter.sharedMesh;
             if (mesh == null) {
-                mesh = new Mesh();
-                mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                mesh = new Mesh {
+                    indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+                };
                 meshFilter.sharedMesh = mesh;
             }
             

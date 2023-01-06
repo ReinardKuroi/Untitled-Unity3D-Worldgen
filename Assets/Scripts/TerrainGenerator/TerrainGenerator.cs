@@ -13,8 +13,8 @@ namespace TerrainGenerator {
         public bool updateInPlayMode = false;
 
         [Header("Map dimensions")]
-        public Vector3Int mapStart = new Vector3Int();
-        public Vector3Int mapEnd = new Vector3Int();
+        public Vector3Int mapStart = new();
+        public Vector3Int mapEnd = new();
         [Header("Map seed")]
         public int inputMapSeed = 0;
         private int mapSeed;
@@ -24,14 +24,14 @@ namespace TerrainGenerator {
         [Range(0, 100)]
         public int seaLevel = 50;
         public PerlinNoiseParameters noiseParameters = new();
-        public Vector3Int chunkSize = new Vector3Int(16, 16, 16);
+        public Vector3Int chunkSize = new(16, 16, 16);
         public Material material;
 
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
-        Queue<Chunk> deadChunks = new Queue<Chunk>();
+        readonly Queue<Chunk> deadChunks = new();
         bool settingsUpdated;
-        private bool DynamicGeneration = false;
+        private readonly bool DynamicGeneration = false;
         private const int MAX_THREADS = 8;
 
         private void Awake() {
@@ -103,7 +103,7 @@ namespace TerrainGenerator {
             Stack<Thread> activeContouringThreads = new();
 
             foreach (Chunk chunk in chunkGenerators.Keys) {
-                Thread thread = new Thread(() =>
+                Thread thread = new(() =>
                 {
                     try {
                         chunkGenerators[chunk].RunContouring();
@@ -156,7 +156,7 @@ namespace TerrainGenerator {
                 chunk = deadChunks.Dequeue();
                 chunk.gameObject.SetActive(true);
             } else {
-                GameObject chunkObject = new GameObject();
+                GameObject chunkObject = new();
                 chunk = chunkObject.GetComponent<Chunk>();
                 if (chunk == null) {
                     chunk = chunkObject.AddComponent<Chunk>();
@@ -193,8 +193,7 @@ namespace TerrainGenerator {
         }
 
         void SetChunkRootTransform() {
-            chunkRoot.transform.position = transform.position;
-            chunkRoot.transform.rotation = transform.rotation;
+            chunkRoot.transform.SetPositionAndRotation(transform.position, transform.rotation);
         }
 
         float SphereDensity(Vector3 x, Vector3 offset, float rad) {
