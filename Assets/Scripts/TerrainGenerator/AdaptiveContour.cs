@@ -38,12 +38,11 @@ namespace TerrainGenerator {
                 new(0, 1, 0)
             }
         };
-
-        Dictionary<Vector3, Point> pointDensityData = new();
+        readonly Dictionary<Vector3, Point> pointDensityData = new();
+        readonly List<int> faces = new();
+        readonly List<Vector3> vertices = new();
+        readonly Dictionary<Vector3, int> vertexIndices = new ();
         Vector3Int size;
-        List<int> faces = new();
-        List<Vector3> vertices = new();
-        Dictionary<Vector3, int> vertexIndices = new ();
 
         float DensityFunction(Vector3 x) {
             return densityFunction(x);
@@ -140,7 +139,7 @@ namespace TerrainGenerator {
         }
 
         List<Vector3> CalculateTransitions(Point[,,] octet) {
-            List<Vector3> transitions = new List<Vector3>();
+            List<Vector3> transitions = new();
             Point point = octet[0, 0, 0];
             // Along x axis
             for (int dy = 0; dy < 2; ++dy) {
@@ -179,7 +178,7 @@ namespace TerrainGenerator {
         }
 
         List<Vector3> CalculateTransitionGradients(List<Vector3> transitions) {
-            List<Vector3> gradients = new List<Vector3>();
+            List<Vector3> gradients = new();
             foreach (Vector3 transition in transitions) {
                 gradients.Add(ApproximateNormals(transition));
             }
@@ -189,7 +188,7 @@ namespace TerrainGenerator {
         private Vector3 ParticleDescent(List<Vector3> transitions, List<Vector3> gradients, float threshold = 0.00001f) {
             const int maxIterations = 50;
             int transitionsCount = transitions.Count;
-            Vector3 centerPoint = new Vector3();
+            Vector3 centerPoint = new();
             
             foreach (Vector3 transition in transitions) {
                 centerPoint += transition;
@@ -197,7 +196,7 @@ namespace TerrainGenerator {
             centerPoint /= transitionsCount;
 
             for (int i = 0; i < maxIterations; ++i) {
-                Vector3 force = new Vector3();
+                Vector3 force = new();
 
                 for (int j = 0; j < transitionsCount; ++j) {
                     Vector3 transition = transitions[j];
@@ -222,7 +221,7 @@ namespace TerrainGenerator {
             float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0));
             float ny = DensityFunction(coordinates - new Vector3(0, delta, 0));
             float nz = DensityFunction(coordinates - new Vector3(0, 0, delta));
-            Vector3 gradient = new Vector3(nx, ny, nz);
+            Vector3 gradient = new(nx, ny, nz);
             return Vector3.Normalize(-gradient);
         }
         IEnumerable<Vector3Int> Volume(Vector3Int size, bool includeEdges = true) {
