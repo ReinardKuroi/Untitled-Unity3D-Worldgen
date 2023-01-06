@@ -50,7 +50,6 @@ namespace TerrainGenerator {
         }
 
         public AdaptiveContour(Func<Vector3, float> densityFunction, Vector3Int size) {
-            this.pointDensityData = new Dictionary<Vector3, Point>();
             this.densityFunction = densityFunction;
             this.size = size;
         }
@@ -76,7 +75,7 @@ namespace TerrainGenerator {
         }
 
         void GenerateVertices() {
-            foreach (Vector3 coordinates in Volume(size, includeEdges: false)) {
+            foreach (Vector3Int coordinates in Volume(size, includeEdges: false)) {
                 Point point = pointDensityData[coordinates];
                 Point[,,] octet = GetNeighbouringOctet(point);
                 List<Vector3> transitions = CalculateTransitions(octet);
@@ -187,8 +186,8 @@ namespace TerrainGenerator {
             return normals;
         }
 
-        private Vector3 ParticleDescent(Vector3 coordinates, List<Vector3> transitions, List<Vector3> normals, float threshold = 0.00001f) {
-            int maxIterations = 50;
+        private Vector3 ParticleDescent(Vector3Int coordinates, List<Vector3> transitions, List<Vector3> normals, float threshold = 0.00001f) {
+            const int maxIterations = 50;
             int transitionsCount = transitions.Count;
             Vector3 centerPoint = new Vector3();
             
@@ -220,9 +219,9 @@ namespace TerrainGenerator {
 
         Vector3 ApproximateNormals(Vector3 coordinates) {
             float delta = 0.00001f;
-            float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0)) - DensityFunction(coordinates + new Vector3(delta, 0, 0));
-            float ny = DensityFunction(coordinates - new Vector3(0, delta, 0)) - DensityFunction(coordinates + new Vector3(0, delta, 0));
-            float nz = DensityFunction(coordinates - new Vector3(0, 0, delta)) - DensityFunction(coordinates + new Vector3(0, 0, delta));
+            float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0));
+            float ny = DensityFunction(coordinates - new Vector3(0, delta, 0));
+            float nz = DensityFunction(coordinates - new Vector3(0, 0, delta));
             Vector3 gradient = new Vector3(nx, ny, nz);
             return Vector3.Normalize(-gradient);
         }
