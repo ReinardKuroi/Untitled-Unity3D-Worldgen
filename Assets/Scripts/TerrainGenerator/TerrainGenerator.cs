@@ -21,8 +21,8 @@ namespace TerrainGenerator {
         [SerializeField]
         Vector3 mapOffset = new();
         [Header("Chunk parameters")]
-        [Range(0f, 1f)]
-        public float seaLevel = 0.5f;
+        [Range(0, 100)]
+        public int seaLevel = 50;
         public PerlinNoiseParameters noiseParameters = new();
         public Vector3Int chunkSize = new Vector3Int(16, 16, 16);
         public Material material;
@@ -90,9 +90,12 @@ namespace TerrainGenerator {
             foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
                 Chunk chunk = InitChunk(chunkPosition);
 
+                Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
+                float radius = chunkSize.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
                 float SampleFunction(Vector3 x) =>
-                    SphereDensity(x, chunk.Coordinates * chunk.Size, chunkSize.magnitude * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI)
-                    + Perlin(x, chunk.Coordinates * chunk.Size, noiseParameters);
+                    SphereDensity(x, chunkOffset, radius)
+                    + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
+                    - seaLevel * 0.01f;
                 chunkGenerators[chunk] = new AdaptiveContour(SampleFunction, chunkSize);
             }
 
@@ -199,26 +202,24 @@ namespace TerrainGenerator {
             return 1/(1 + Mathf.Exp(x.magnitude - rad)) - 0.5f;
         }
 
-        float Perlin(Vector3 x, Vector3 offset, PerlinNoiseParameters parameters) {
-            float amplitude = 1;
-            float cumulativeNoise = 0;
-            float cumulativeAmplitude = 0;
+        float Perlin(Vector3 point, PerlinNoiseParameters parameters) {
+            float amplitude = 1f;
+            float cumulativeNoise = 0f;
+            float cumulativeAmplitude = 0f;
 
-            float frequency = parameters.frequency;
+            float frequency = parameters.frequency / 100f;
             float persistence = parameters.persistence;
             float lacunarity = parameters.lacunarity;
             int octaves = parameters.octaves;
 
-            x = x + offset + mapOffset;
-
             for (int i = 0; i < octaves; ++i) {
-                cumulativeNoise = noise.snoise(x * frequency / 100) * amplitude;
+                cumulativeNoise = noise.snoise(point * frequency) * amplitude;
                 cumulativeAmplitude += amplitude;
                 amplitude *= persistence;
                 frequency *= lacunarity;
             }
 
-            return cumulativeNoise * 0.5f / cumulativeAmplitude - seaLevel;
+            return cumulativeNoise / cumulativeAmplitude;
         }
     }
 
