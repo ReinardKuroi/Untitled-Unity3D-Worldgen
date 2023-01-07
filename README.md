@@ -19,8 +19,8 @@ Most of my notes regarding this are in Obsidian. See [ReinardKuroi/worldgen](htt
  - :black_square_button: Saving terrain modification
  - :black_square_button: Terrain props (trees rocks items e.c.t)
  - :black_square_button: Saving terrain prop maps (allows for persistent saves)
- - :white_check_mark: Adaptive dual countouring with particle descent (**CPU**)
- - :black_square_button: Adaptive dual countouring with particle descent (**GPU Compute**)
+ - :white_check_mark: Adaptive dual contouring with particle descent (**CPU**)
+ - :black_square_button: Adaptive dual contouring with particle descent (**GPU Compute**)
  - :black_square_button: Marching cubes (**CPU**)
  - :black_square_button: Marching cubes (**GPU Compute**)
  - :black_square_button: Procedural atmospheric shader
