@@ -3,10 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using System.Threading;
 using UnityEngine.UI;
 
-namespace TerrainGenerator { 
+namespace TerrainGenerator {
 
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
@@ -30,15 +29,19 @@ namespace TerrainGenerator {
 
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
-        readonly Queue<Chunk> deadChunks = new();
-        Dictionary<Vector3Int, Chunk> existingChunks = new();
         bool settingsUpdated;
         [Header("Dynamic Update Settings")]
         public bool DynamicGeneration = false;
         public float renderDistance = 50f;
         public Transform viewPoint;
 
-        private const int MAX_THREADS = 8;
+        readonly Dictionary<Vector3Int, Chunk> existingChunks = new();
+        readonly Stack<Chunk> chunksToCreate = new();
+        readonly Stack<Chunk> chunksInProgress = new();
+        readonly Stack<Chunk> chunksCompleted = new();
+        readonly Stack<Chunk> chunksToDestroy = new();
+
+        readonly ThreadDispatcher threadDispatcher = new();
 
         private void Awake() {
             UpdateMesh();
@@ -49,6 +52,9 @@ namespace TerrainGenerator {
                 UpdateMesh();
                 settingsUpdated = false;
             }
+            EnqueueChunkGeneration();
+            threadDispatcher.UpdateThreads();
+            SetCompletedChunkMesh();
         }
 
         void UpdateMesh() {
@@ -96,8 +102,6 @@ namespace TerrainGenerator {
                 $"Current Chunk: {currentChunk}\n" +
                 $"Chunk Render Distance: {chunkRenderDistance}";
 
-            Dictionary<Chunk, AdaptiveContour> chunkGenerators = new();
-
             for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
                 for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
                     for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
@@ -112,52 +116,11 @@ namespace TerrainGenerator {
                                 SphereDensity(x, chunkOffset, radius)
                                 + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
                                 - seaLevel * 0.01f;
-                            chunkGenerators[chunk] = new AdaptiveContour(SampleFunction, chunkSize);
+                            chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
+                            chunksToCreate.Push(chunk);
                             existingChunks[chunkPosition] = chunk;
                         }
                     }
-                }
-            }
-
-            Stack<Thread> contouringThreads = new();
-            Stack<Thread> activeContouringThreads = new();
-
-            foreach (Chunk chunk in chunkGenerators.Keys) {
-                Thread thread = new(() => {
-                    try {
-                        chunkGenerators[chunk].RunContouring();
-                    }
-                    catch (Exception exc) {
-                        Debug.LogError(exc);
-                    }
-                });
-                contouringThreads.Push(thread);
-                thread.Name = $"{chunk.name}";
-            }
-
-
-            while (contouringThreads.Count > 0) {
-                while (activeContouringThreads.Count < MAX_THREADS) {
-                    if (contouringThreads.TryPop(out Thread thread)) {
-                        thread.Start();
-                        Debug.Log($"Thread {thread.Name} started");
-                        activeContouringThreads.Push(thread);
-                    } else {
-                        break;
-                    }
-                }
-
-                while (activeContouringThreads.Count > 0) {
-                    Thread thread = activeContouringThreads.Pop();
-                    thread.Join();
-                    Debug.Log($"Thread {thread.Name} finished");
-                }
-            }
-
-            foreach (Chunk chunk in chunkGenerators.Keys) {
-                chunkGenerators[chunk].SetMesh(chunk.mesh);
-                if (chunk.mesh.vertexCount == 0 || chunk.mesh.triangles.Length == 0) {
-                    chunk.gameObject.SetActive(false);
                 }
             }
 
@@ -170,13 +133,8 @@ namespace TerrainGenerator {
 
         void GenerateStaticMesh () {
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                if (deadChunk.Disable()) {
-                    deadChunks.Enqueue(deadChunk);
-                }
+                deadChunk.Disable();
             }
-
-            Dictionary<Chunk, AdaptiveContour> chunkGenerators = new();
-
 
             foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
                 Chunk chunk = InitChunk(chunkPosition);
@@ -187,47 +145,23 @@ namespace TerrainGenerator {
                     SphereDensity(x, chunkOffset, radius)
                     + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
                     - seaLevel * 0.01f;
-                chunkGenerators[chunk] = new AdaptiveContour(SampleFunction, chunkSize);
+                chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
+                chunksToCreate.Push(chunk);
             }
+        }
 
-            Stack<Thread> contouringThreads = new();
-            Stack<Thread> activeContouringThreads = new();
-
-            foreach (Chunk chunk in chunkGenerators.Keys) {
-                Thread thread = new(() =>
-                {
-                    try {
-                        chunkGenerators[chunk].RunContouring();
-                    } catch (Exception exc) {
-                        Debug.LogError(exc);
-                    }
-                });
-                contouringThreads.Push(thread);
-                thread.Name = $"{chunk.name}";
+        private void EnqueueChunkGeneration() {
+            while (chunksToCreate.TryPop(out Chunk chunk)) {
+                Action invoke = chunk.chunkGenerator.Run;
+                Action callback = () => chunksCompleted.Push(chunk);
+                threadDispatcher.EnqueueThread(invoke, callback, workerName: $"{chunk.Coordinates}");
             }
+        }
 
-
-            while (contouringThreads.Count > 0) {
-                while (activeContouringThreads.Count < MAX_THREADS) {
-                    if (contouringThreads.TryPop(out Thread thread)) {
-                        thread.Start();
-                        Debug.Log($"Thread {thread.Name} started");
-                        activeContouringThreads.Push(thread);
-                    } else {
-                        break;
-                    }
-                }
-
-                while (activeContouringThreads.Count > 0) {
-                    Thread thread = activeContouringThreads.Pop();
-                    thread.Join();
-                    Debug.Log($"Thread {thread.Name} finished");
-                }
-            }
-
-            foreach (Chunk chunk in chunkGenerators.Keys) {
-                chunkGenerators[chunk].SetMesh(chunk.mesh);
-                DisableChunkIfEmpty(chunk);
+        private void SetCompletedChunkMesh() {
+            while (chunksCompleted.TryPop(out Chunk chunk)) {
+                chunk.SetMesh();
+                chunk.DisableIfEmpty();
             }
         }
 
@@ -243,17 +177,12 @@ namespace TerrainGenerator {
 
         Chunk InitChunk(Vector3Int coordinates) {
             Chunk chunk;
-            if (deadChunks.Count > 0) {
-                chunk = deadChunks.Dequeue();
-                chunk.gameObject.SetActive(true);
-            } else {
-                GameObject chunkObject = new();
-                chunk = chunkObject.GetComponent<Chunk>();
-                if (chunk == null) {
-                    chunk = chunkObject.AddComponent<Chunk>();
-                }
-                chunk.Setup(material);
+            GameObject chunkObject = new();
+            chunk = chunkObject.GetComponent<Chunk>();
+            if (chunk == null) {
+                chunk = chunkObject.AddComponent<Chunk>();
             }
+            chunk.Setup(material);
             chunk.Coordinates = coordinates;
             chunk.Size = chunkSize;
             chunk.name = $"Chunk ({chunk.Coordinates})";
@@ -262,14 +191,6 @@ namespace TerrainGenerator {
             chunk.transform.localRotation = Quaternion.identity;
             chunk.Center = chunk.transform.position + chunk.Size * Mathf.Sqrt(3) * Vector3.one / 2;
             return chunk;
-        }
-
-        void DisableChunkIfEmpty(Chunk chunk) {
-            if (chunk.mesh.vertexCount == 0 || chunk.mesh.triangles.Length == 0) {
-                if (chunk.Disable()) {
-                    deadChunks.Enqueue(chunk);
-                }
-            }
         }
 
         void CreateChunkRoot() {
