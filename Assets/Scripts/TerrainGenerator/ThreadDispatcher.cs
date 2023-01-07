@@ -67,8 +67,28 @@ namespace TerrainGenerator {
         void Join() {
             while (threadsCompleted.TryPop(out Thread worker)) {
                 worker.Join();
-                threadCallbacks[worker.ManagedThreadId]();
                 Debug.Log($"Thread {worker.Name} finished");
+                RunCallback(worker.ManagedThreadId);
+            }
+        }
+
+        void RunCallback(int workerId) {
+            Debug.Log($"Thread callback {workerId}: {threadCallbacks[workerId]}");
+            threadCallbacks[workerId]();
+            DropCallback(workerId);
+        }
+
+        void DropCallback(int workerId) {
+            threadCallbacks.Remove(workerId);
+            Debug.Log($"Thread callback dropped: {workerId}");
+        }
+
+        public void Flush() {
+            threadsInQueue.Clear();
+            while (threadsRunning.TryDequeue(out Thread worker)) {
+                worker.Abort();
+                Debug.Log($"Thread {worker.Name} flushed");
+                threadCallbacks.Remove(worker.ManagedThreadId);
             }
         }
     }
