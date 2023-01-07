@@ -39,7 +39,6 @@ namespace TerrainGenerator {
             }
         };
         readonly Dictionary<int3, GridPoint> pointDensityData = new();
-        readonly Dictionary<int3, Octet> gridCells = new();
         readonly Dictionary<Transition, Vector3> transitionGradients = new();
         readonly List<int> faces = new();
         readonly List<Vector3> vertices = new();
@@ -69,15 +68,14 @@ namespace TerrainGenerator {
                 if (octet.HasTransitions) {
                     CalculateTransitionGradients(octet.transitions);
                     octet.vertex = ParticleDescent(octet.transitions);
+                    GenerateVertex(octet);
                 }
-                gridCells[gridCoordinates] = octet;
             }
         }
 
         public void RunContouring() {
             PopulateDensityData();
             GroupGirdPointsIntoOctets();
-            GenerateVertices();
             GenerateFaces();
         }
 
@@ -88,32 +86,36 @@ namespace TerrainGenerator {
             mesh.RecalculateNormals();
         }
 
-        void GenerateVertices() {
-            foreach (int3 gridCoordinates in Volume(size, includeEdges: false)) {
-                if (gridCells[gridCoordinates].HasTransitions) {
-                    vertices.Add(gridCells[gridCoordinates].vertex);
-                    vertexIndices[gridCoordinates] = vertices.Count - 1;
-                }
-            }
+        void GenerateVertex(Octet gridCell) {
+            vertices.Add(gridCell.vertex);
+            vertexIndices[gridCell.coordinates] = vertices.Count - 1;
         }
 
         void GenerateFaces() {
             foreach (int3 coordinates in Volume(size, includeEdges: false)) {
-                for (int axis = 0; axis < axisVectors.Length; ++axis) {
-                    int3 offsetCoordinates = coordinates + axisVectors[axis];
-                    if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
-                        continue;
-                    }
-                    bool inside = pointDensityData[coordinates].Exists;
-                    bool outside = pointDensityData[offsetCoordinates].Exists;
-                    if (inside != outside) {
-                        int[] quad = GenerateQuad(coordinates, axis, vertexIndices);
-                        if (outside) {
-                            Array.Reverse(quad);
-                        }
-                        faces.AddRange(quad);
-                    }
+                GenerateFacesAtGridCoordinates(coordinates);
+            }
+        }
+
+        void GenerateFacesAtGridCoordinates(int3 coordinates) {
+            for (int axis = 0; axis < axisVectors.Length; ++axis) {
+                GenerateFaceAlongAxis(coordinates, axis);
+            }
+        }
+
+        void GenerateFaceAlongAxis(int3 coordinates, int axis) {
+            int3 offsetCoordinates = coordinates + axisVectors[axis];
+            if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
+                return;
+            }
+            bool inside = pointDensityData[coordinates].Exists;
+            bool outside = pointDensityData[offsetCoordinates].Exists;
+            if (inside != outside) {
+                int[] quad = GenerateQuad(coordinates, axis);
+                if (outside) {
+                    Array.Reverse(quad);
                 }
+                faces.AddRange(quad);
             }
         }
 
@@ -125,7 +127,7 @@ namespace TerrainGenerator {
             }
         }
 
-        int[] GenerateQuad(int3 coordinates, int axis, Dictionary<int3, int> vertexIndices) {
+        int[] GenerateQuad(int3 coordinates, int axis) {
             int[] quad = new int[6];
 
             for (int i = 0; i < quad.Length; ++i) {
