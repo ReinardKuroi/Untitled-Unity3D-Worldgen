@@ -78,5 +78,9 @@ namespace TerrainGenerator {
         internal void SetMesh() {
             chunkGenerator.SetMesh(mesh);
         }
+
+        internal void Destroy() {
+            DestroyImmediate(gameObject, false);
+        }
     }
 }

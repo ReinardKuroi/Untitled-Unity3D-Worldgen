@@ -52,7 +52,8 @@ namespace TerrainGenerator {
                 UpdateMesh();
                 settingsUpdated = false;
             }
-            EnqueueChunkGeneration();
+            DestroyDeadChunks();
+            CreateChunkWorkers();
             threadDispatcher.UpdateThreads();
             SetCompletedChunkMesh();
         }
@@ -126,14 +127,14 @@ namespace TerrainGenerator {
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
                 if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > renderDistance) {
-                    existingChunks[chunkPosition].gameObject.SetActive(false);
+                    EnqueueChunkToDestroy(existingChunks[chunkPosition]);
                 }
             }
         }
 
         void GenerateStaticMesh () {
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                deadChunk.Disable();
+                deadChunk.Destroy();
             }
 
             threadDispatcher.Flush();
@@ -148,11 +149,19 @@ namespace TerrainGenerator {
                     + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
                     - seaLevel * 0.01f;
                 chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
-                chunksToCreate.Push(chunk);
+                EnqueueChunkToCreate(chunk);
             }
         }
 
-        private void EnqueueChunkGeneration() {
+        private void EnqueueChunkToCreate(Chunk chunk) {
+            chunksToCreate.Push(chunk);
+        }
+
+        private void EnqueueChunkToDestroy(Chunk chunk) {
+            chunksToDestroy.Push(chunk);
+        }
+
+        private void CreateChunkWorkers() {
             while (chunksToCreate.TryPop(out Chunk chunk)) {
                 Action invoke = chunk.chunkGenerator.Run;
                 Action callback = () => chunksCompleted.Push(chunk);
@@ -164,6 +173,12 @@ namespace TerrainGenerator {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.SetMesh();
                 chunk.DisableIfEmpty();
+            }
+        }
+
+        private void DestroyDeadChunks() {
+            while (chunksToDestroy.TryPop(out Chunk chunk)) {
+                chunk.Disable();
             }
         }
 
