@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,12 +7,15 @@ namespace TerrainGenerator {
     public class Chunk : MonoBehaviour {
         public Vector3Int Coordinates { get; set; }
         public int Size { get; set; }
+        public Vector3 Center { get; set; }
+
+        public IMeshGenerator chunkGenerator;
+
         public Mesh mesh;
+        MeshCollider meshCollider;
         MeshFilter meshFilter;
         MeshRenderer meshRenderer;
-        public MeshCollider meshCollider;
         readonly bool generateCollider = true;
-        public Vector3 Center { get; set; }
 
         public void Setup(Material material) {
             meshFilter = GetComponent<MeshFilter>();
@@ -62,6 +66,17 @@ namespace TerrainGenerator {
                 gameObject.SetActive(false);
                 return this;
             }
+        }
+
+        public Chunk DisableIfEmpty() {
+            if (mesh.vertexCount == 0 || mesh.triangles.Length == 0) {
+                return Disable();
+            }
+            return this;
+        }
+
+        internal void SetMesh() {
+            chunkGenerator.SetMesh(mesh);
         }
     }
 }
