@@ -14,7 +14,8 @@ Most of my notes regarding this are in Obsidian. See [ReinardKuroi/worldgen](htt
  - :black_square_button: LOD based collision mesh for performance
  - :black_square_button: LOD meshes
  - :black_square_button: LOD meshes based on view distance
- - :black_square_button: Threaded generation
+ - :white_check_mark: Threaded generation
+ - :black_square_button: Background threads
  - :black_square_button: Terrain modification via diff maps
  - :black_square_button: Saving terrain modification
  - :black_square_button: Terrain props (trees rocks items e.c.t)
