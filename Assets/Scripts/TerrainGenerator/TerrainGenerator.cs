@@ -41,7 +41,7 @@ namespace TerrainGenerator {
         readonly Stack<Chunk> chunksCompleted = new();
         readonly Stack<Chunk> chunksToDestroy = new();
 
-        readonly ThreadDispatcher threadDispatcher = new();
+        readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
         private void Awake() {
             UpdateMesh();

@@ -4,13 +4,21 @@ using UnityEngine;
 using System.Threading;
 
 namespace TerrainGenerator {
-    class ThreadDispatcher {
+    public class ThreadDispatcher {
 
-        private const int MAX_THREADS = 8;
+        private readonly int MAX_THREADS = 8;
         readonly Stack<Thread> threadsInQueue = new();
         readonly Queue<Thread> threadsRunning = new();
         readonly Stack<Thread> threadsCompleted = new();
         readonly Dictionary<int, Action> threadCallbacks = new();
+
+        public static ThreadDispatcher Instance { get {
+                if (instance == null) {
+                    instance = new ThreadDispatcher();
+                }
+                return instance;
+            } }
+        private static ThreadDispatcher instance;
 
         public void UpdateThreads() {
             Run();
@@ -45,7 +53,7 @@ namespace TerrainGenerator {
             while (threadsRunning.Count < MAX_THREADS) {
                 if (threadsInQueue.TryPop(out Thread worker)) {
                     worker.Start();
-                    Debug.Log($"Thread {worker.Name} started");
+                    Debug.Log($"Thread started: {worker.Name}");
                     threadsRunning.Enqueue(worker);
                 } else {
                     break;
@@ -67,13 +75,13 @@ namespace TerrainGenerator {
         void Join() {
             while (threadsCompleted.TryPop(out Thread worker)) {
                 worker.Join();
-                Debug.Log($"Thread {worker.Name} finished");
+                Debug.Log($"Thread finished: {worker.Name} {worker.ThreadState}");
                 RunCallback(worker.ManagedThreadId);
             }
         }
 
         void RunCallback(int workerId) {
-            Debug.Log($"Thread callback {workerId}: {threadCallbacks[workerId]}");
+            Debug.Log($"Thread callback {workerId}: {threadCallbacks[workerId].Method}");
             threadCallbacks[workerId]();
             DropCallback(workerId);
         }
@@ -87,7 +95,7 @@ namespace TerrainGenerator {
             threadsInQueue.Clear();
             while (threadsRunning.TryDequeue(out Thread worker)) {
                 worker.Abort();
-                Debug.Log($"Thread {worker.Name} flushed");
+                Debug.Log($"Thread flushed: {worker.Name} {worker.ThreadState}");
                 threadCallbacks.Remove(worker.ManagedThreadId);
             }
         }
