@@ -62,8 +62,8 @@ namespace TerrainGenerator {
                 SetMapSeed();
                 SetMapOffset();
                 CreateChunkRoot();
-                GenerateMesh();
                 SetChunkRootTransform();
+                GenerateMesh();
             }
         }
 
@@ -136,6 +136,8 @@ namespace TerrainGenerator {
                 deadChunk.Disable();
             }
 
+            threadDispatcher.Flush();
+
             foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
                 Chunk chunk = InitChunk(chunkPosition);
 
@@ -199,8 +201,6 @@ namespace TerrainGenerator {
                     chunkRoot = GameObject.Find(chunkRootName);
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
-                    //Rotator rotator = chunkRoot.AddComponent<Rotator>();
-                    //rotator.speed = chunkSize * 3f / 60f;
                 }
             }
         }
