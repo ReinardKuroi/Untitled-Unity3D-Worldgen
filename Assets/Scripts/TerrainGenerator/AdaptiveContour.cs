@@ -7,7 +7,7 @@ using Unity.Mathematics;
 
 namespace TerrainGenerator {
 
-    public class AdaptiveContour {
+    public class AdaptiveContour : IMeshGenerator {
         readonly Func<Vector3, float> densityFunction;
         static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0)};
         static readonly int3[,] cubicOffsets = new int3[3,6] {
@@ -73,7 +73,7 @@ namespace TerrainGenerator {
             }
         }
 
-        public void RunContouring() {
+        public void Run() {
             PopulateDensityData();
             GroupGirdPointsIntoOctets();
             GenerateFaces();
