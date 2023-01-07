@@ -33,7 +33,11 @@ namespace TerrainGenerator {
         readonly Queue<Chunk> deadChunks = new();
         Dictionary<Vector3Int, Chunk> existingChunks = new();
         bool settingsUpdated;
+        [Header("Dynamic Update Settings")]
         public bool DynamicGeneration = false;
+        public float renderDistance = 50f;
+        public Transform viewPoint;
+
         private const int MAX_THREADS = 8;
 
         private void Awake() {
@@ -84,15 +88,15 @@ namespace TerrainGenerator {
         }
 
         void GenerateDynamicMesh() {
-            float renderDistance = 15f;
             int chunkRenderDistance = Mathf.RoundToInt(renderDistance / chunkSize);
-            Transform viewPoint = GameObject.Find("Player").transform;
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
 
             Text debug = GameObject.Find("Debug").GetComponent<Text>();
             debug.text = $"View Point: {viewPoint.position}\n" +
                 $"Current Chunk: {currentChunk}\n" +
                 $"Chunk Render Distance: {chunkRenderDistance}";
+
+            Dictionary<Chunk, AdaptiveContour> chunkGenerators = new();
 
             for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
                 for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
@@ -108,12 +112,52 @@ namespace TerrainGenerator {
                                 SphereDensity(x, chunkOffset, radius)
                                 + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
                                 - seaLevel * 0.01f;
-                            AdaptiveContour chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
-                            chunkGenerator.RunContouring();
-                            chunkGenerator.SetMesh(chunk.mesh);
+                            chunkGenerators[chunk] = new AdaptiveContour(SampleFunction, chunkSize);
                             existingChunks[chunkPosition] = chunk;
                         }
                     }
+                }
+            }
+
+            Stack<Thread> contouringThreads = new();
+            Stack<Thread> activeContouringThreads = new();
+
+            foreach (Chunk chunk in chunkGenerators.Keys) {
+                Thread thread = new(() => {
+                    try {
+                        chunkGenerators[chunk].RunContouring();
+                    }
+                    catch (Exception exc) {
+                        Debug.LogError(exc);
+                    }
+                });
+                contouringThreads.Push(thread);
+                thread.Name = $"{chunk.name}";
+            }
+
+
+            while (contouringThreads.Count > 0) {
+                while (activeContouringThreads.Count < MAX_THREADS) {
+                    if (contouringThreads.TryPop(out Thread thread)) {
+                        thread.Start();
+                        Debug.Log($"Thread {thread.Name} started");
+                        activeContouringThreads.Push(thread);
+                    } else {
+                        break;
+                    }
+                }
+
+                while (activeContouringThreads.Count > 0) {
+                    Thread thread = activeContouringThreads.Pop();
+                    thread.Join();
+                    Debug.Log($"Thread {thread.Name} finished");
+                }
+            }
+
+            foreach (Chunk chunk in chunkGenerators.Keys) {
+                chunkGenerators[chunk].SetMesh(chunk.mesh);
+                if (chunk.mesh.vertexCount == 0 || chunk.mesh.triangles.Length == 0) {
+                    chunk.gameObject.SetActive(false);
                 }
             }
 
