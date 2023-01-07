@@ -5,7 +5,7 @@ using UnityEngine;
 namespace TerrainGenerator {
     public class Chunk : MonoBehaviour {
         public Vector3Int Coordinates { get; set; }
-        public Vector3Int Size { get; set; }
+        public int Size { get; set; }
         public Mesh mesh;
         MeshFilter meshFilter;
         MeshRenderer meshRenderer;
@@ -39,8 +39,9 @@ namespace TerrainGenerator {
 
             mesh = meshFilter.sharedMesh;
             if (mesh == null) {
-                mesh = new Mesh();
-                mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+                mesh = new Mesh {
+                    indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+                };
                 meshFilter.sharedMesh = mesh;
             }
             
