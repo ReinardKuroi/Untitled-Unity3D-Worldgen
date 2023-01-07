@@ -11,10 +11,7 @@ namespace TerrainGenerator {
         MeshRenderer meshRenderer;
         public MeshCollider meshCollider;
         readonly bool generateCollider = true;
-
-        public static int CalculateHash(int x, int y, int z) {
-            return (x * 73856093 ^ y * 19349663 ^ z * 83492791) % int.MaxValue;
-        }
+        public Vector3 Center { get; set; }
 
         public void Setup(Material material) {
             meshFilter = GetComponent<MeshFilter>();

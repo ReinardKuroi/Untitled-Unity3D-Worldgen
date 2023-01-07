@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
 using System.Threading;
+using UnityEngine.UI;
 
 namespace TerrainGenerator { 
 
@@ -30,8 +31,9 @@ namespace TerrainGenerator {
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
         readonly Queue<Chunk> deadChunks = new();
+        Dictionary<Vector3Int, Chunk> existingChunks = new();
         bool settingsUpdated;
-        private readonly bool DynamicGeneration = false;
+        public bool DynamicGeneration = false;
         private const int MAX_THREADS = 8;
 
         private void Awake() {
@@ -39,7 +41,7 @@ namespace TerrainGenerator {
         }
 
         void Update() {
-            if (settingsUpdated) {
+            if (settingsUpdated || Application.isPlaying && DynamicGeneration) {
                 UpdateMesh();
                 settingsUpdated = false;
             }
@@ -75,9 +77,54 @@ namespace TerrainGenerator {
 
         void GenerateMesh() {
             if (DynamicGeneration) {
-                throw new NotImplementedException("Dynamic render not implemented!");
+                GenerateDynamicMesh();
+            } else {
+                GenerateStaticMesh();
+            }
+        }
+
+        void GenerateDynamicMesh() {
+            float renderDistance = 15f;
+            int chunkRenderDistance = Mathf.RoundToInt(renderDistance / chunkSize);
+            Transform viewPoint = GameObject.Find("Player").transform;
+            Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
+
+            Text debug = GameObject.Find("Debug").GetComponent<Text>();
+            debug.text = $"View Point: {viewPoint.position}\n" +
+                $"Current Chunk: {currentChunk}\n" +
+                $"Chunk Render Distance: {chunkRenderDistance}";
+
+            for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
+                for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
+                    for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
+                        Vector3Int chunkPosition = currentChunk + new Vector3Int(dx, dy, dz);
+                        if (existingChunks.ContainsKey(chunkPosition)) {
+                            existingChunks[chunkPosition].gameObject.SetActive(true);
+                        } else {
+                            Chunk chunk = InitChunk(chunkPosition);
+                            Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
+                            float radius = chunkSize * Mathf.Sqrt(3) * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
+                            float SampleFunction(Vector3 x) =>
+                                SphereDensity(x, chunkOffset, radius)
+                                + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
+                                - seaLevel * 0.01f;
+                            AdaptiveContour chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
+                            chunkGenerator.RunContouring();
+                            chunkGenerator.SetMesh(chunk.mesh);
+                            existingChunks[chunkPosition] = chunk;
+                        }
+                    }
+                }
             }
 
+            foreach (Vector3Int chunkPosition in existingChunks.Keys) {
+                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > renderDistance) {
+                    existingChunks[chunkPosition].gameObject.SetActive(false);
+                }
+            }
+        }
+
+        void GenerateStaticMesh () {
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
                 if (deadChunk.Disable()) {
                     deadChunks.Enqueue(deadChunk);
@@ -169,6 +216,7 @@ namespace TerrainGenerator {
             chunk.transform.parent = chunkRoot.transform;
             chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
             chunk.transform.localRotation = Quaternion.identity;
+            chunk.Center = chunk.transform.position + chunk.Size * Mathf.Sqrt(3) * Vector3.one / 2;
             return chunk;
         }
 
@@ -186,8 +234,8 @@ namespace TerrainGenerator {
                     chunkRoot = GameObject.Find(chunkRootName);
                 } else {
                     chunkRoot = new GameObject(chunkRootName);
-                    Rotator rotator = chunkRoot.AddComponent<Rotator>();
-                    rotator.speed = chunkSize * 3f / 60f;
+                    //Rotator rotator = chunkRoot.AddComponent<Rotator>();
+                    //rotator.speed = chunkSize * 3f / 60f;
                 }
             }
         }
