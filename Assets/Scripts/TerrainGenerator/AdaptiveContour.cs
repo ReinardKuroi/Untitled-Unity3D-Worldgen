@@ -43,7 +43,7 @@ namespace TerrainGenerator {
         readonly List<int> faces = new();
         readonly List<Vector3> vertices = new();
         readonly Dictionary<int3, int> vertexIndices = new();
-        int size;
+        readonly int size;
 
         float DensityFunction(Vector3 x) {
             return densityFunction(x);
@@ -233,7 +233,7 @@ namespace TerrainGenerator {
                     for (int dy = 0; dy < 2; ++dy) {
                         for (int dz = 0; dz < 2; ++dz) {
                             int3 offset = new(dx, dy, dz);
-                            octet[Octet.IndexFromCoords(dx, dy, dz)] = pointDensityData[coordinates + offset];
+                            octet[IndexFromCoords(dx, dy, dz)] = pointDensityData[coordinates + offset];
                         }
                     }
                 }
