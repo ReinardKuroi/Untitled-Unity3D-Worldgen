@@ -6,15 +6,16 @@ using System.Threading;
 namespace TerrainGenerator {
     public class ThreadDispatcher {
 
-        private readonly int MAX_THREADS = 8;
-        readonly Stack<Thread> threadsInQueue = new();
+        private const int MAX_THREADS = 12;
+        readonly Queue<Thread> threadsInQueue = new();
         readonly Queue<Thread> threadsRunning = new();
-        readonly Stack<Thread> threadsCompleted = new();
+        readonly Queue<Thread> threadsCompleted = new();
         readonly Dictionary<int, Action> threadCallbacks = new();
 
         public static ThreadDispatcher Instance { get {
                 if (instance == null) {
                     instance = new ThreadDispatcher();
+                    Debug.Log($"Initialized new ThreadDispatcher {instance}: numThreads {MAX_THREADS}");
                 }
                 return instance;
             } }
@@ -26,7 +27,7 @@ namespace TerrainGenerator {
             Join();
         }
 
-        public Thread EnqueueThread(Action Invoke, Action callback = null, string workerName = null) {
+        public Thread EnqueueThread(Action Invoke, Action Callback = null, string workerName = null) {
             Thread worker = new(() => {
                 try {
                     Invoke();
@@ -40,23 +41,30 @@ namespace TerrainGenerator {
                 workerName = threadsInQueue.Count.ToString();
             }
             worker.Name = workerName;
-            threadsInQueue.Push(worker);
+            threadsInQueue.Enqueue(worker);
 
-            if (callback != null) {
-                threadCallbacks.Add(worker.ManagedThreadId, callback);
+            if (Callback != null) {
+                threadCallbacks.Add(worker.ManagedThreadId, Callback);
             }
-
+            Debug.Log($"Enqueued new thread {worker.ManagedThreadId}: Invoke {Invoke.Method} Callback {Callback.Method}");
             return worker;
         }
 
         void Run() {
+            int newThreadCount = 0;
             while (threadsRunning.Count < MAX_THREADS) {
-                if (threadsInQueue.TryPop(out Thread worker)) {
+                if (threadsInQueue.TryDequeue(out Thread worker)) {
                     worker.Start();
                     threadsRunning.Enqueue(worker);
+                    ++newThreadCount;
+                    Debug.Log($"Started thread {worker.ManagedThreadId}");
                 } else {
                     break;
                 }
+            }
+            if (newThreadCount > 0) {
+                Debug.Log($"Added Threads: {newThreadCount}");
+                Debug.Log($"Threads Running: {threadsRunning.Count}");
             }
         }
 
@@ -65,14 +73,16 @@ namespace TerrainGenerator {
                 Thread worker = threadsRunning.Dequeue();
                 if (worker.IsAlive) {
                     threadsRunning.Enqueue(worker);
+                    Debug.Log($"Thread still running: {worker.ManagedThreadId}");
                 } else {
-                    threadsCompleted.Push(worker);
+                    threadsCompleted.Enqueue(worker);
+                    Debug.Log($"Thread marked as complete: {worker.ManagedThreadId}");
                 }
             }
         }
 
         void Join() {
-            while (threadsCompleted.TryPop(out Thread worker)) {
+            while (threadsCompleted.TryDequeue(out Thread worker)) {
                 worker.Join();
                 RunCallback(worker.ManagedThreadId);
             }
