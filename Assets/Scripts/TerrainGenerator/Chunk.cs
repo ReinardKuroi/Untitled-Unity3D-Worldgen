@@ -5,19 +5,22 @@ using UnityEngine;
 
 namespace TerrainGenerator {
     public class Chunk : MonoBehaviour {
+        [field: SerializeField]
         public Vector3Int Coordinates { get; set; }
+        [field: SerializeField]
         public int Size { get; set; }
+        [field: SerializeField]
         public Vector3 Center { get; set; }
 
         public IMeshGenerator chunkGenerator;
 
+        [HideInInspector]
         public Mesh mesh;
         MeshCollider meshCollider;
         MeshFilter meshFilter;
         MeshRenderer meshRenderer;
-        readonly bool generateCollider = true;
 
-        public void Setup(Material material) {
+        public void Setup(Material material, bool generateCollider) {
             meshFilter = GetComponent<MeshFilter>();
             meshRenderer = GetComponent<MeshRenderer>();
             meshCollider = GetComponent<MeshCollider>();
@@ -62,7 +65,6 @@ namespace TerrainGenerator {
                 DestroyImmediate(gameObject, false);
                 return null;
             } else {
-                mesh.Clear();
                 gameObject.SetActive(false);
                 return this;
             }
