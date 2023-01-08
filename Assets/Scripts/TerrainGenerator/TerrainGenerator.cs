@@ -173,7 +173,7 @@ namespace TerrainGenerator {
         }
 
         private void SetCompletedChunkMesh() {
-            while (chunksCompleted.TryPop(out Chunk chunk)) {
+            if (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.SetMesh();
                 if (chunk.Empty) {
                     EnqueueChunkToDestroy(chunk);
@@ -182,7 +182,7 @@ namespace TerrainGenerator {
         }
 
         private void DestroyDeadChunks() {
-            while (chunksToDestroy.TryPop(out Chunk chunk)) {
+            if (chunksToDestroy.TryPop(out Chunk chunk)) {
                 if (chunk) {
                     Chunk.Disable(chunk);
                 }

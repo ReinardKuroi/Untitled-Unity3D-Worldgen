@@ -6,7 +6,7 @@ using System.Threading;
 namespace TerrainGenerator {
     public class ThreadDispatcher {
 
-        private const int MAX_THREADS = 12;
+        private const int MAX_THREADS = 8;
         readonly Queue<Thread> threadsInQueue = new();
         readonly Queue<Thread> threadsRunning = new();
         readonly Queue<Thread> threadsCompleted = new();
