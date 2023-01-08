@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Unity.Mathematics;
 
 namespace TerrainGenerator {
 
@@ -135,7 +134,7 @@ namespace TerrainGenerator {
         void GenerateStaticMesh () {
             ResetChunks();
 
-            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize)) {
+            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize + 1)) {
                 Chunk chunk = InitChunk(chunkPosition);
 
                 Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
@@ -232,44 +231,11 @@ namespace TerrainGenerator {
         }
 
         float DensityFunction(Vector3 x) {
-            float radius = chunkSize * mapSize * 3 / Mathf.PI;
-            return SphereDensity(x, radius) + 0.5f * Perlin(x + mapOffset, noiseParameters) * mountainLevel * 0.1f - seaLevel * 0.01f;
+            float radius = chunkSize * mapSize;
+            return DensityFunctionCollection.Sigmoid(
+                DensityFunctionCollection.SphereDensity(x, radius)
+                + DensityFunctionCollection.Perlin(x + mapOffset, noiseParameters) * mountainLevel * 0.1f
+                ) - seaLevel * 0.01f;
         }
-
-        float SphereDensity(Vector3 x, float rad) {
-            return 1/(1 + Mathf.Exp(x.magnitude - rad)) - 0.5f;
-        }
-
-        float Perlin(Vector3 point, PerlinNoiseParameters parameters) {
-            float amplitude = 1f;
-            float cumulativeNoise = 0f;
-            float cumulativeAmplitude = 0f;
-
-            float frequency = parameters.frequency / 1000f;
-            float persistence = parameters.persistence;
-            float lacunarity = parameters.lacunarity;
-            int octaves = parameters.octaves;
-
-            for (int i = 0; i < octaves; ++i) {
-                cumulativeNoise = noise.snoise(point * frequency) * amplitude;
-                cumulativeAmplitude += amplitude;
-                amplitude *= persistence;
-                frequency *= lacunarity;
-            }
-
-            return cumulativeNoise / cumulativeAmplitude;
-        }
-    }
-
-    [System.Serializable]
-    public struct PerlinNoiseParameters {
-        [Range(0, 1000)]
-        public int frequency;
-        [Range(0, 10)]
-        public float persistence;
-        [Range(0, 10)]
-        public float lacunarity;
-        [Range(0, 10)]
-        public int octaves;
     }
 }
