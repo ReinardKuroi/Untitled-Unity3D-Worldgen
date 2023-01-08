@@ -11,6 +11,7 @@ namespace TerrainGenerator {
         public int Size { get; set; }
         [field: SerializeField]
         public Vector3 Center { get; set; }
+        public bool Empty { get { return mesh.vertexCount == 0 || mesh.triangles.Length == 0; } }
 
         public IMeshGenerator chunkGenerator;
 
@@ -60,21 +61,16 @@ namespace TerrainGenerator {
             }
         }
 
-        public Chunk Disable() {
+        public static Chunk Disable(Chunk chunk) {
             if (!Application.isPlaying) {
-                DestroyImmediate(gameObject, false);
+                if (chunk.gameObject) {
+                    chunk.Destroy();
+                }
                 return null;
             } else {
-                gameObject.SetActive(false);
-                return this;
+                chunk.gameObject.SetActive(false);
+                return chunk;
             }
-        }
-
-        public Chunk DisableIfEmpty() {
-            if (mesh.vertexCount == 0 || mesh.triangles.Length == 0) {
-                return Disable();
-            }
-            return this;
         }
 
         internal void SetMesh() {
