@@ -46,7 +46,7 @@ namespace TerrainGenerator {
             if (Callback != null) {
                 threadCallbacks.Add(worker.ManagedThreadId, Callback);
             }
-            Debug.Log($"Enqueued new thread {worker.ManagedThreadId}: Invoke {Invoke.Method} Callback {Callback.Method}");
+            Debug.Log($"Enqueued new thread {worker.ManagedThreadId} #{threadsInQueue.Count}: Invoke {Invoke.Method} Callback {Callback.Method}");
             return worker;
         }
 
