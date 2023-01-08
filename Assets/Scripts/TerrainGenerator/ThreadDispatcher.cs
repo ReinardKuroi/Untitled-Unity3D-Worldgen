@@ -10,6 +10,7 @@ namespace TerrainGenerator {
         readonly Queue<Thread> threadsInQueue = new();
         readonly Queue<Thread> threadsRunning = new();
         readonly Queue<Thread> threadsCompleted = new();
+        readonly List<int> threadsToKill = new();
         readonly Dictionary<int, Action> threadCallbacks = new();
 
         public static ThreadDispatcher Instance { get {
@@ -27,7 +28,7 @@ namespace TerrainGenerator {
             Join();
         }
 
-        public Thread EnqueueThread(Action Invoke, Action Callback = null, string workerName = null) {
+        public int EnqueueThread(Action Invoke, Action Callback = null, string workerName = null) {
             Thread worker = new(() => {
                 try {
                     Invoke();
@@ -47,7 +48,7 @@ namespace TerrainGenerator {
                 threadCallbacks.Add(worker.ManagedThreadId, Callback);
             }
             Debug.Log($"Enqueued new thread {worker.ManagedThreadId} #{threadsInQueue.Count}: Invoke {Invoke.Method} Callback {Callback.Method}");
-            return worker;
+            return worker.ManagedThreadId;
         }
 
         void Run() {
@@ -71,7 +72,12 @@ namespace TerrainGenerator {
         void CheckStatus() {
             for (int i = 0; i < threadsRunning.Count; ++i) {
                 Thread worker = threadsRunning.Dequeue();
-                if (worker.IsAlive) {
+                if (threadsToKill.Contains(worker.ManagedThreadId)) {
+                    worker.Abort();
+                    DropCallback(worker.ManagedThreadId);
+                    threadsToKill.Remove(worker.ManagedThreadId);
+                    Debug.Log($"Kill thread {worker.ManagedThreadId}: {worker.ThreadState}");
+                } else if (worker.IsAlive) {
                     threadsRunning.Enqueue(worker);
                     Debug.Log($"Thread {worker.ManagedThreadId}: {worker.ThreadState}");
                 } else {
@@ -98,10 +104,17 @@ namespace TerrainGenerator {
         }
 
         public void Flush() {
-            threadsInQueue.Clear();
             while (threadsRunning.TryDequeue(out Thread worker)) {
-                worker.Abort();
-                DropCallback(worker.ManagedThreadId);
+                TryKill(worker.ManagedThreadId);
+            }
+            while (threadsInQueue.TryDequeue(out Thread worker)) {
+                threadsToKill.Remove(worker.ManagedThreadId);
+            }
+        }
+
+        internal void TryKill(int workerId) {
+            if (workerId != 0) {
+                threadsToKill.Add(workerId);
             }
         }
     }

@@ -9,11 +9,12 @@ namespace TerrainGenerator {
         public Vector3Int Coordinates { get; set; }
         [field: SerializeField]
         public int Size { get; set; }
-        [field: SerializeField]
-        public Vector3 Center { get; set; }
+        [SerializeField]
+        public Vector3 Center { get { return Size * (Coordinates + Vector3.one * 0.5f); } }
         public bool Empty { get { return mesh.vertexCount == 0 || mesh.triangles.Length == 0; } }
 
         public IMeshGenerator chunkGenerator;
+        public int workerId;
 
         [HideInInspector]
         public Mesh mesh;
@@ -62,26 +63,14 @@ namespace TerrainGenerator {
         }
 
         public void Enable() {
-            if (!gameObject.activeSelf) {
+            if (gameObject && !gameObject.activeSelf) {
                 gameObject.SetActive(true);
             }
         }
 
         public void Disable() {
-            if (gameObject.activeSelf) {
+            if (gameObject && gameObject.activeSelf) {
                 gameObject.SetActive(false);
-            }
-        }
-
-        public static Chunk Disable(Chunk chunk) {
-            if (!Application.isPlaying) {
-                if (chunk.gameObject) {
-                    chunk.Destroy();
-                }
-                return null;
-            } else {
-                chunk.gameObject.SetActive(false);
-                return chunk;
             }
         }
 

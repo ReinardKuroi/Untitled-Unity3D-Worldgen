@@ -42,9 +42,8 @@ namespace TerrainGenerator {
 
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
-        private void OnEnable() {
+        private void Awake() {
             Reset();
-            UpdateMesh();
         }
 
         private void Reset() {
@@ -115,11 +114,17 @@ namespace TerrainGenerator {
                 if (!existingChunks.ContainsKey(chunkPosition)) {
                     Chunk chunk = InitChunk(chunkPosition);
                     Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                    chunk.chunkGenerator = new AdaptiveContour(x => DensityFunction(x + chunkOffset), chunkSize);
+                    chunk.chunkGenerator = new AdaptiveContour(x => DensityFunction(x + chunkOffset), chunk.Size);
                     existingChunks[chunkPosition] = chunk;
                     EnqueueChunkToCreate(chunk);
                 }
                 existingChunks[chunkPosition].Enable();
+            }
+
+            foreach (Vector3Int chunkPosition in existingChunks.Keys) {
+                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > chunkRenderDistance * chunkSize) {
+                    existingChunks[chunkPosition].Disable();
+                }
             }
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
@@ -135,8 +140,9 @@ namespace TerrainGenerator {
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize + 1)) {
                 Chunk chunk = InitChunk(chunkPosition);
                 Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunkSize);
+                chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
                 EnqueueChunkToCreate(chunk);
+                existingChunks[chunkPosition] = chunk;
             }
         }
 
@@ -166,17 +172,15 @@ namespace TerrainGenerator {
 
         private void CreateChunkWorkers() {
             while (chunksToCreate.TryPop(out Chunk chunk)) {
-                threadDispatcher.EnqueueThread(chunk.chunkGenerator.Run, () => chunksCompleted.Push(chunk), workerName: $"{chunk.Coordinates}");
+                chunk.workerId = threadDispatcher.EnqueueThread(chunk.chunkGenerator.Run, () => chunksCompleted.Push(chunk), workerName: $"{chunk.Coordinates}");
             }
         }
 
         private void SetCompletedChunkMesh() {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
+                chunk.workerId = 0;
                 chunk.SetMesh();
                 chunk.chunkGenerator = null;
-                if (chunk.Empty) {
-                    chunk.Disable();
-                }
             }
         }
 
@@ -184,7 +188,9 @@ namespace TerrainGenerator {
             while (chunksToDestroy.TryPop(out Chunk chunk)) {
                 if (chunk) {
                     Debug.Log($"Destroyed chunk {chunk.name}");
-                    Chunk.Disable(chunk);
+                    existingChunks.Remove(chunk.Coordinates);
+                    threadDispatcher.TryKill(chunk.workerId);
+                    chunk.Destroy();
                 }
             }
         }
@@ -222,7 +228,6 @@ namespace TerrainGenerator {
             chunk.transform.parent = chunkRoot.transform;
             chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
             chunk.transform.localRotation = Quaternion.identity;
-            chunk.Center = chunkSize * (chunk.Coordinates + Vector3.one * 0.5f);
             return chunk;
         }
 
