@@ -96,7 +96,7 @@ namespace TerrainGenerator {
             while (threadsRunning.TryDequeue(out Thread worker)) {
                 worker.Abort();
                 Debug.Log($"Thread flushed: {worker.Name} {worker.ThreadState}");
-                threadCallbacks.Remove(worker.ManagedThreadId);
+                DropCallback(worker.ManagedThreadId);
             }
         }
     }
