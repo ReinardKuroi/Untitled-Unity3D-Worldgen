@@ -53,7 +53,6 @@ namespace TerrainGenerator {
             while (threadsRunning.Count < MAX_THREADS) {
                 if (threadsInQueue.TryPop(out Thread worker)) {
                     worker.Start();
-                    Debug.Log($"Thread started: {worker.Name}");
                     threadsRunning.Enqueue(worker);
                 } else {
                     break;
@@ -75,27 +74,23 @@ namespace TerrainGenerator {
         void Join() {
             while (threadsCompleted.TryPop(out Thread worker)) {
                 worker.Join();
-                Debug.Log($"Thread finished: {worker.Name} {worker.ThreadState}");
                 RunCallback(worker.ManagedThreadId);
             }
         }
 
         void RunCallback(int workerId) {
-            Debug.Log($"Thread callback {workerId}: {threadCallbacks[workerId].Method}");
             threadCallbacks[workerId]();
             DropCallback(workerId);
         }
 
         void DropCallback(int workerId) {
             threadCallbacks.Remove(workerId);
-            Debug.Log($"Thread callback dropped: {workerId}");
         }
 
         public void Flush() {
             threadsInQueue.Clear();
             while (threadsRunning.TryDequeue(out Thread worker)) {
                 worker.Abort();
-                Debug.Log($"Thread flushed: {worker.Name} {worker.ThreadState}");
                 DropCallback(worker.ManagedThreadId);
             }
         }
