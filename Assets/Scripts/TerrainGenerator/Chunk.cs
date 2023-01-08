@@ -61,6 +61,12 @@ namespace TerrainGenerator {
             }
         }
 
+        public void Enable() {
+            if (!gameObject.activeSelf) {
+                gameObject.SetActive(true);
+            }
+        }
+
         public static Chunk Disable(Chunk chunk) {
             if (!Application.isPlaying) {
                 if (chunk.gameObject) {
