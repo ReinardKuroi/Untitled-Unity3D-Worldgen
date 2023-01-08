@@ -32,7 +32,7 @@ namespace TerrainGenerator {
         bool settingsUpdated;
         [Header("Dynamic Update Settings")]
         public bool DynamicGeneration = false;
-        public float renderDistance = 50f;
+        public int chunkRenderDistance = 3;
         public Transform viewPoint;
 
         Dictionary<Vector3Int, Chunk> existingChunks;
@@ -109,23 +109,21 @@ namespace TerrainGenerator {
         }
 
         void GenerateDynamicMesh() {
-            int chunkRenderDistance = Mathf.RoundToInt(renderDistance / chunkSize);
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
 
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, chunkRenderDistance)) {
                 if (!existingChunks.ContainsKey(chunkPosition)) {
                     Chunk chunk = InitChunk(chunkPosition);
                     Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                    float SampleFunction(Vector3 x) => DensityFunction(x + chunkOffset);
-                    chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
+                    chunk.chunkGenerator = new AdaptiveContour(x => DensityFunction(x + chunkOffset), chunkSize);
                     existingChunks[chunkPosition] = chunk;
                     EnqueueChunkToCreate(chunk);
                 }
-                existingChunks[chunkPosition].gameObject.SetActive(true);
+                existingChunks[chunkPosition].Enable();
             }
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > renderDistance) {
+                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > (chunkRenderDistance) * chunkSize) {
                     EnqueueChunkToDestroy(existingChunks[chunkPosition]);
                 }
             }
@@ -192,13 +190,22 @@ namespace TerrainGenerator {
         }
 
         IEnumerable<Vector3Int> NearbyChunkCoordinates(Vector3Int currentChunk, int chunkRenderDistance) {
-                for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx)
-                    for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy)
-                        for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
-                            Vector3Int offset = new(dx, dy, dz);
-                            if ((offset + Vector3.one * 0.5f - currentChunk).magnitude <= chunkRenderDistance)
-                                yield return currentChunk + offset;
+            List<(Vector3Int, float distance)> coordinateList = new();
+            for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
+                for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
+                    for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
+                        Vector3Int offset = new(dx, dy, dz);
+                        float distance = (offset + Vector3.one * 0.5f).magnitude;
+                        if (distance <= chunkRenderDistance) {
+                            coordinateList.Add((currentChunk + offset, distance));
                         }
+                    }
+                }
+            }
+            coordinateList.Sort((x, y) => y.distance.CompareTo(x.distance));
+            foreach ((Vector3Int coordinate, float) entry in coordinateList) {
+                yield return entry.coordinate;
+            }
         }
 
         Chunk InitChunk(Vector3Int coordinates) {
