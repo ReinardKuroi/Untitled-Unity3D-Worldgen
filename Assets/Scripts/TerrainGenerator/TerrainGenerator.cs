@@ -118,8 +118,8 @@ namespace TerrainGenerator {
                     Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
                     float SampleFunction(Vector3 x) => DensityFunction(x + chunkOffset);
                     chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
-                    chunksToCreate.Push(chunk);
                     existingChunks[chunkPosition] = chunk;
+                    EnqueueChunkToCreate(chunk);
                 }
                 existingChunks[chunkPosition].gameObject.SetActive(true);
             }
@@ -192,10 +192,13 @@ namespace TerrainGenerator {
         }
 
         IEnumerable<Vector3Int> NearbyChunkCoordinates(Vector3Int currentChunk, int chunkRenderDistance) {
-            for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx)
-                for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy)
-                    for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz)
-                        yield return currentChunk + new Vector3Int(dx, dy, dz);
+                for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx)
+                    for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy)
+                        for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
+                            Vector3Int offset = new(dx, dy, dz);
+                            if ((offset + Vector3.one * 0.5f - currentChunk).magnitude <= chunkRenderDistance)
+                                yield return currentChunk + offset;
+                        }
         }
 
         Chunk InitChunk(Vector3Int coordinates) {
