@@ -57,7 +57,7 @@ namespace TerrainGenerator {
                     worker.Start();
                     threadsRunning.Enqueue(worker);
                     ++newThreadCount;
-                    Debug.Log($"Started thread {worker.ManagedThreadId}");
+                    Debug.Log($"Started thread {worker.ManagedThreadId}: {worker.Name}");
                 } else {
                     break;
                 }
@@ -73,10 +73,10 @@ namespace TerrainGenerator {
                 Thread worker = threadsRunning.Dequeue();
                 if (worker.IsAlive) {
                     threadsRunning.Enqueue(worker);
-                    Debug.Log($"Thread still running: {worker.ManagedThreadId}");
+                    Debug.Log($"Thread {worker.ManagedThreadId}: {worker.ThreadState}");
                 } else {
                     threadsCompleted.Enqueue(worker);
-                    Debug.Log($"Thread marked as complete: {worker.ManagedThreadId}");
+                    Debug.Log($"Thread {worker.ManagedThreadId} marked as complete: {worker.Name}");
                 }
             }
         }
