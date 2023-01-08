@@ -12,16 +12,17 @@ namespace TerrainGenerator {
         public bool updateInPlayMode = false;
 
         [Header("Map dimensions")]
-        public Vector3Int mapStart = new();
-        public Vector3Int mapEnd = new();
+        public int mapSize = 1;
         [Header("Map seed")]
         public int inputMapSeed = 0;
         private int mapSeed;
         [SerializeField]
         Vector3 mapOffset = new();
         [Header("Chunk parameters")]
-        [Range(0, 100)]
+        [Range(-100, 100)]
         public int seaLevel = 50;
+        [Range(0, 100)]
+        public int mountainLevel = 10;
         public PerlinNoiseParameters noiseParameters = new();
         public int chunkSize = 16;
         public Material material;
@@ -43,23 +44,37 @@ namespace TerrainGenerator {
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
         private void OnEnable() {
+            Reset();
+            UpdateMesh();
+        }
+
+        private void Reset() {
             ResetChunks();
             SetMapSeed();
             SetMapOffset();
             CreateChunkRoot();
             SetChunkRootTransform();
-            UpdateMesh();
         }
 
         void Update() {
             if (settingsUpdated || Application.isPlaying && DynamicGeneration) {
+                if (!Application.isPlaying) {
+                    Reset();
+                }
                 UpdateMesh();
                 settingsUpdated = false;
             }
-            DestroyDeadChunks();
             CreateChunkWorkers();
             threadDispatcher.UpdateThreads();
             SetCompletedChunkMesh();
+            DestroyDeadChunks();
+        }
+
+        private void OnDrawGizmos() {
+            if (!Application.isPlaying) {
+                UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
+                UnityEditor.SceneView.RepaintAll();
+            }
         }
 
         void UpdateMesh() {
@@ -98,25 +113,16 @@ namespace TerrainGenerator {
             int chunkRenderDistance = Mathf.RoundToInt(renderDistance / chunkSize);
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
 
-            for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
-                for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
-                    for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
-                        Vector3Int chunkPosition = currentChunk + new Vector3Int(dx, dy, dz);
-                        if (!existingChunks.ContainsKey(chunkPosition)) {
-                            Chunk chunk = InitChunk(chunkPosition);
-                            Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                            float radius = chunkSize * Mathf.Sqrt(3) * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
-                            float SampleFunction(Vector3 x) =>
-                                SphereDensity(x, chunkOffset, radius)
-                                + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
-                                - seaLevel * 0.01f;
-                            chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
-                            chunksToCreate.Push(chunk);
-                            existingChunks[chunkPosition] = chunk;
-                        }
-                        existingChunks[chunkPosition].gameObject.SetActive(true);
-                    }
+            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, chunkRenderDistance)) {
+                if (!existingChunks.ContainsKey(chunkPosition)) {
+                    Chunk chunk = InitChunk(chunkPosition);
+                    Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
+                    float SampleFunction(Vector3 x) => DensityFunction(x + chunkOffset);
+                    chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
+                    chunksToCreate.Push(chunk);
+                    existingChunks[chunkPosition] = chunk;
                 }
+                existingChunks[chunkPosition].gameObject.SetActive(true);
             }
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
@@ -129,15 +135,11 @@ namespace TerrainGenerator {
         void GenerateStaticMesh () {
             ResetChunks();
 
-            foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
+            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize)) {
                 Chunk chunk = InitChunk(chunkPosition);
 
                 Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                float radius = chunkSize * Mathf.Sqrt(3) * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
-                float SampleFunction(Vector3 x) =>
-                    SphereDensity(x, chunkOffset, radius)
-                    + 0.5f * Perlin(x + chunkOffset + mapOffset, noiseParameters)
-                    - seaLevel * 0.01f;
+                float SampleFunction(Vector3 x) => DensityFunction(x + chunkOffset);
                 chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
                 EnqueueChunkToCreate(chunk);
             }
@@ -145,8 +147,14 @@ namespace TerrainGenerator {
 
         private void ResetChunks() {
             existingChunks = new Dictionary<Vector3Int, Chunk>();
+            while (chunksToCreate.TryPop(out Chunk deadchunk)) {
+                EnqueueChunkToDestroy(deadchunk);
+            }
+            while (chunksCompleted.TryPop(out Chunk deadchunk)) {
+                EnqueueChunkToDestroy(deadchunk);
+            }
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                deadChunk.Destroy();
+                EnqueueChunkToDestroy(deadChunk);
             }
             threadDispatcher.Flush();
         }
@@ -170,24 +178,25 @@ namespace TerrainGenerator {
         private void SetCompletedChunkMesh() {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.SetMesh();
-                chunk.DisableIfEmpty();
+                if (chunk.Empty) {
+                    EnqueueChunkToDestroy(chunk);
+                }
             }
         }
 
         private void DestroyDeadChunks() {
             while (chunksToDestroy.TryPop(out Chunk chunk)) {
-                chunk.Disable();
+                if (chunk) {
+                    Chunk.Disable(chunk);
+                }
             }
         }
 
-        IEnumerable<Vector3Int> IterateOverChunkGrid() {
-            for (int x = mapStart.x; x < mapEnd.x; ++x) {
-                for (int y = mapStart.y; y < mapEnd.y; ++y) {
-                    for (int z = mapStart.z; z < mapEnd.z; ++z) {
-                        yield return new Vector3Int(x, y, z);
-                    }
-                }
-            }
+        IEnumerable<Vector3Int> NearbyChunkCoordinates(Vector3Int currentChunk, int chunkRenderDistance) {
+            for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx)
+                for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy)
+                    for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz)
+                        yield return currentChunk + new Vector3Int(dx, dy, dz);
         }
 
         Chunk InitChunk(Vector3Int coordinates) {
@@ -222,8 +231,12 @@ namespace TerrainGenerator {
             chunkRoot.transform.SetPositionAndRotation(transform.position, transform.rotation);
         }
 
-        float SphereDensity(Vector3 x, Vector3 offset, float rad) {
-            x += offset;
+        float DensityFunction(Vector3 x) {
+            float radius = chunkSize * mapSize * 3 / Mathf.PI;
+            return SphereDensity(x, radius) + 0.5f * Perlin(x + mapOffset, noiseParameters) * mountainLevel * 0.1f - seaLevel * 0.01f;
+        }
+
+        float SphereDensity(Vector3 x, float rad) {
             return 1/(1 + Mathf.Exp(x.magnitude - rad)) - 0.5f;
         }
 
