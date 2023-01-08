@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
-using UnityEngine.UI;
 
 namespace TerrainGenerator {
 
@@ -26,6 +25,7 @@ namespace TerrainGenerator {
         public PerlinNoiseParameters noiseParameters = new();
         public int chunkSize = 16;
         public Material material;
+        public bool generateColliders;
 
         const string chunkRootName = "Chunk Root";
         GameObject chunkRoot;
@@ -42,11 +42,13 @@ namespace TerrainGenerator {
 
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
-
-        void Start() {
+        private void OnEnable() {
             ResetChunks();
+            SetMapSeed();
+            SetMapOffset();
+            CreateChunkRoot();
+            SetChunkRootTransform();
             UpdateMesh();
-            existingChunks = new Dictionary<Vector3Int, Chunk>();
         }
 
         void Update() {
@@ -62,10 +64,6 @@ namespace TerrainGenerator {
 
         void UpdateMesh() {
             if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
-                SetMapSeed();
-                SetMapOffset();
-                CreateChunkRoot();
-                SetChunkRootTransform();
                 GenerateMesh();
             }
         }
@@ -100,18 +98,11 @@ namespace TerrainGenerator {
             int chunkRenderDistance = Mathf.RoundToInt(renderDistance / chunkSize);
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
 
-            Text debug = GameObject.Find("Debug").GetComponent<Text>();
-            debug.text = $"View Point: {viewPoint.position}\n" +
-                $"Current Chunk: {currentChunk}\n" +
-                $"Chunk Render Distance: {chunkRenderDistance}\n";
-
             for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
                 for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
                     for (int dz = -chunkRenderDistance; dz <= chunkRenderDistance; ++dz) {
                         Vector3Int chunkPosition = currentChunk + new Vector3Int(dx, dy, dz);
-                        if (existingChunks.ContainsKey(chunkPosition)) {
-                            existingChunks[chunkPosition].gameObject.SetActive(true);
-                        } else {
+                        if (!existingChunks.ContainsKey(chunkPosition)) {
                             Chunk chunk = InitChunk(chunkPosition);
                             Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
                             float radius = chunkSize * Mathf.Sqrt(3) * (mapEnd - mapStart).magnitude * 0.5f / Mathf.PI;
@@ -122,8 +113,8 @@ namespace TerrainGenerator {
                             chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
                             chunksToCreate.Push(chunk);
                             existingChunks[chunkPosition] = chunk;
-                            debug.text += $"Enqueued creation at {chunkPosition}\n";
                         }
+                        existingChunks[chunkPosition].gameObject.SetActive(true);
                     }
                 }
             }
@@ -131,7 +122,6 @@ namespace TerrainGenerator {
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
                 if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > renderDistance) {
                     EnqueueChunkToDestroy(existingChunks[chunkPosition]);
-                    debug.text += $"Enqueued destruction at {chunkPosition}\n";
                 }
             }
         }
@@ -154,6 +144,7 @@ namespace TerrainGenerator {
         }
 
         private void ResetChunks() {
+            existingChunks = new Dictionary<Vector3Int, Chunk>();
             foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
                 deadChunk.Destroy();
             }
@@ -206,14 +197,14 @@ namespace TerrainGenerator {
             if (chunk == null) {
                 chunk = chunkObject.AddComponent<Chunk>();
             }
-            chunk.Setup(material);
+            chunk.Setup(material, generateColliders);
             chunk.Coordinates = coordinates;
             chunk.Size = chunkSize;
             chunk.name = $"Chunk ({chunk.Coordinates})";
             chunk.transform.parent = chunkRoot.transform;
             chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
             chunk.transform.localRotation = Quaternion.identity;
-            chunk.Center = chunk.transform.position + chunk.Size * Mathf.Sqrt(3) * Vector3.one / 2;
+            chunk.Center = chunk.transform.position + chunk.Size * Vector3.one / 2;
             return chunk;
         }
 
@@ -241,7 +232,7 @@ namespace TerrainGenerator {
             float cumulativeNoise = 0f;
             float cumulativeAmplitude = 0f;
 
-            float frequency = parameters.frequency / 100f;
+            float frequency = parameters.frequency / 1000f;
             float persistence = parameters.persistence;
             float lacunarity = parameters.lacunarity;
             int octaves = parameters.octaves;
@@ -259,8 +250,8 @@ namespace TerrainGenerator {
 
     [System.Serializable]
     public struct PerlinNoiseParameters {
-        [Range(0, 100)]
-        public float frequency;
+        [Range(0, 1000)]
+        public int frequency;
         [Range(0, 10)]
         public float persistence;
         [Range(0, 10)]
