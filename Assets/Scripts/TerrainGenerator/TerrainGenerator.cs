@@ -35,16 +35,18 @@ namespace TerrainGenerator {
         public float renderDistance = 50f;
         public Transform viewPoint;
 
-        readonly Dictionary<Vector3Int, Chunk> existingChunks = new();
+        Dictionary<Vector3Int, Chunk> existingChunks;
         readonly Stack<Chunk> chunksToCreate = new();
-        readonly Stack<Chunk> chunksInProgress = new();
         readonly Stack<Chunk> chunksCompleted = new();
         readonly Stack<Chunk> chunksToDestroy = new();
 
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
-        private void Awake() {
+
+        void Start() {
+            ResetChunks();
             UpdateMesh();
+            existingChunks = new Dictionary<Vector3Int, Chunk>();
         }
 
         void Update() {
@@ -87,7 +89,7 @@ namespace TerrainGenerator {
         }
 
         void GenerateMesh() {
-            if (DynamicGeneration) {
+            if (DynamicGeneration && Application.isPlaying) {
                 GenerateDynamicMesh();
             } else {
                 GenerateStaticMesh();
@@ -101,7 +103,7 @@ namespace TerrainGenerator {
             Text debug = GameObject.Find("Debug").GetComponent<Text>();
             debug.text = $"View Point: {viewPoint.position}\n" +
                 $"Current Chunk: {currentChunk}\n" +
-                $"Chunk Render Distance: {chunkRenderDistance}";
+                $"Chunk Render Distance: {chunkRenderDistance}\n";
 
             for (int dx = -chunkRenderDistance; dx <= chunkRenderDistance; ++dx) {
                 for (int dy = -chunkRenderDistance; dy <= chunkRenderDistance; ++dy) {
@@ -120,6 +122,7 @@ namespace TerrainGenerator {
                             chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
                             chunksToCreate.Push(chunk);
                             existingChunks[chunkPosition] = chunk;
+                            debug.text += $"Enqueued creation at {chunkPosition}\n";
                         }
                     }
                 }
@@ -128,16 +131,13 @@ namespace TerrainGenerator {
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
                 if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > renderDistance) {
                     EnqueueChunkToDestroy(existingChunks[chunkPosition]);
+                    debug.text += $"Enqueued destruction at {chunkPosition}\n";
                 }
             }
         }
 
         void GenerateStaticMesh () {
-            foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                deadChunk.Destroy();
-            }
-
-            threadDispatcher.Flush();
+            ResetChunks();
 
             foreach (Vector3Int chunkPosition in IterateOverChunkGrid()) {
                 Chunk chunk = InitChunk(chunkPosition);
@@ -151,6 +151,13 @@ namespace TerrainGenerator {
                 chunk.chunkGenerator = new AdaptiveContour(SampleFunction, chunkSize);
                 EnqueueChunkToCreate(chunk);
             }
+        }
+
+        private void ResetChunks() {
+            foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
+                deadChunk.Destroy();
+            }
+            threadDispatcher.Flush();
         }
 
         private void EnqueueChunkToCreate(Chunk chunk) {
