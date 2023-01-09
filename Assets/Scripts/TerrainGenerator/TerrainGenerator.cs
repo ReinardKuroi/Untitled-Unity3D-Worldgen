@@ -221,10 +221,9 @@ namespace TerrainGenerator {
 
         float DensityFunction(Vector3 x) {
             float radius = generationOptions.chunkSize * generationOptions.mapSize;
-            return DensityFunctionCollection.Sigmoid(
-                DensityFunctionCollection.SphereDensity(x, radius)
-                + DensityFunctionCollection.Perlin(x + mapOffset, generationOptions.noiseParameters) * generationOptions.mountainLevel * 0.1f
-                ) - generationOptions.seaLevel * 0.01f;
+            return DensityFunctionCollection.Sigmoid(DensityFunctionCollection.SphereDensity(x, radius) * generationOptions.seaLevel * 0.01f
+                + DensityFunctionCollection.Perlin(x + mapOffset, generationOptions.noiseParameters) * generationOptions.mountainLevel * 0.1f)
+                + generationOptions.offsetLevel * 0.01f;
         }
     }
 }

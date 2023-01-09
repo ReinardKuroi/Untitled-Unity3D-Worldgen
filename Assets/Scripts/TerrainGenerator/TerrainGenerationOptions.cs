@@ -17,8 +17,10 @@ namespace TerrainGenerator {
         [Header("Chunk parameters")]
         [Range(-100, 100)]
         public int seaLevel;
-        [Range(0, 100)]
+        [Range(-100, 100)]
         public int mountainLevel;
+        [Range(-100, 100)]
+        public int offsetLevel;
         public PerlinNoiseParameters noiseParameters;
         public int chunkSize;
         public bool generateColliders;
