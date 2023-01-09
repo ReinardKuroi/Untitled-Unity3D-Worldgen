@@ -36,7 +36,9 @@ namespace TerrainGenerator {
         }
 
         public void Destroy() {
-            DestroyImmediate(gameObject, false);
+            if (gameObject) {
+                DestroyImmediate(gameObject, false);
+            }
         }
 
         public void Init(Vector3Int coordinates, int chunkSize, Transform chunkRoot) {
@@ -77,15 +79,6 @@ namespace TerrainGenerator {
                 };
                 meshFilter.sharedMesh = mesh;
             }
-            
-            if (generateCollider) {
-                if (meshCollider.sharedMesh == null) {
-                    meshCollider.cookingOptions = MeshColliderCookingOptions.None;
-                    meshCollider.cookingOptions = MeshColliderCookingOptions.UseFastMidphase;
-                    meshCollider.sharedMesh = mesh;
-                }
-                ForceUpdateCollider();
-            }
         }
 
         private void ForceUpdateCollider() {
@@ -108,12 +101,16 @@ namespace TerrainGenerator {
         public void SetMesh() {
             chunkGenerator.SetMesh(mesh);
             if (!Empty && generateCollider) {
+                if (generateCollider) {
+                    meshCollider.sharedMesh = mesh;
+                }
                 ForceUpdateCollider();
             }
         }
 
         public void ResetMesh() {
             if (mesh != null) {
+                meshCollider.enabled = false;
                 mesh.Clear();
             }
         }
