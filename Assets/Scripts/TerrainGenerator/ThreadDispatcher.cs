@@ -53,6 +53,7 @@ namespace TerrainGenerator {
             while (threadsRunning.Count < MAX_THREADS) {
                 if (threadsInQueue.TryDequeue(out Thread worker)) {
                     if (threadsToKill.Contains(worker.ManagedThreadId)) {
+                        threadsToKill.Remove(worker.ManagedThreadId);
                         continue;
                     }
                     worker.Start();
