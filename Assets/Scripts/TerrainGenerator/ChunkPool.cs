@@ -5,12 +5,13 @@ namespace TerrainGenerator {
         readonly Stack<Chunk> chunks = new();
 
         public Chunk Fetch() {
-            if (chunks.TryPop(out Chunk chunk) && chunk.gameObject) {
-                chunk.Enable();
-                return chunk;
-            } else {
-                return Chunk.Create();
+            while (chunks.TryPop(out Chunk chunk)) {
+                if (chunk.gameObject) {
+                    chunk.Enable();
+                    return chunk;
+                }
             }
+            return Chunk.Create();
         }
 
         public void Store(Chunk chunk) {
