@@ -10716,6 +10716,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1227421769}
   m_CullTransparentMesh: 1
+--- !u!1 &1235546344
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1235546345}
+  m_Layer: 0
+  m_Name: Chunk Root
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1235546345
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1235546344}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 7
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1604181739
 GameObject:
   m_ObjectHideFlags: 0
@@ -10809,7 +10840,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1604181739}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 30, z: -250}
+  m_LocalPosition: {x: 0, y: 30, z: -270}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -11088,20 +11119,21 @@ MonoBehaviour:
   material: {fileID: 2100000, guid: 447293887155b8f44a6813e2bd966b4d, type: 2}
   generationOptions:
     updateInEditMode: 0
-    updateInPlayMode: 0
-    DynamicGeneration: 0
-    chunkRenderDistance: 0
-    mapSize: 0
+    updateInPlayMode: 1
+    DynamicGeneration: 1
+    chunkRenderDistance: 4
+    mapSize: 16
     inputMapSeed: 0
-    seaLevel: 0
-    mountainLevel: 0
+    seaLevel: 11
+    mountainLevel: 50
+    offsetLevel: 20
     noiseParameters:
-      frequency: 0
-      persistence: 0
-      lacunarity: 0
-      octaves: 0
-    chunkSize: 0
-    generateColliders: 0
+      frequency: 2
+      persistence: 0.8
+      lacunarity: 4
+      octaves: 3
+    chunkSize: 16
+    generateColliders: 1
 --- !u!1 &1861458462
 GameObject:
   m_ObjectHideFlags: 0
