@@ -16,7 +16,6 @@ namespace TerrainGenerator {
         public static ThreadDispatcher Instance { get {
                 if (instance == null) {
                     instance = new ThreadDispatcher();
-                    Debug.Log($"Initialized new ThreadDispatcher {instance}: numThreads {MAX_THREADS}");
                 }
                 return instance;
             } }
@@ -47,12 +46,10 @@ namespace TerrainGenerator {
             if (Callback != null) {
                 threadCallbacks.Add(worker.ManagedThreadId, Callback);
             }
-            Debug.Log($"Enqueued new thread {worker.ManagedThreadId} #{threadsInQueue.Count}: Invoke {Invoke.Method} Callback {Callback.Method}");
             return worker.ManagedThreadId;
         }
 
         void Run() {
-            int newThreadCount = 0;
             while (threadsRunning.Count < MAX_THREADS) {
                 if (threadsInQueue.TryDequeue(out Thread worker)) {
                     if (threadsToKill.Contains(worker.ManagedThreadId)) {
@@ -60,15 +57,9 @@ namespace TerrainGenerator {
                     }
                     worker.Start();
                     threadsRunning.Enqueue(worker);
-                    ++newThreadCount;
-                    Debug.Log($"Started thread {worker.ManagedThreadId}: {worker.Name}");
                 } else {
                     break;
                 }
-            }
-            if (newThreadCount > 0) {
-                Debug.Log($"Added Threads: {newThreadCount}");
-                Debug.Log($"Threads Running: {threadsRunning.Count}");
             }
         }
 
@@ -79,13 +70,10 @@ namespace TerrainGenerator {
                     worker.Abort();
                     DropCallback(worker.ManagedThreadId);
                     threadsToKill.Remove(worker.ManagedThreadId);
-                    Debug.Log($"Kill thread {worker.ManagedThreadId}: {worker.ThreadState}");
                 } else if (worker.IsAlive) {
                     threadsRunning.Enqueue(worker);
-                    Debug.Log($"Thread {worker.ManagedThreadId}: {worker.ThreadState}");
                 } else {
                     threadsCompleted.Enqueue(worker);
-                    Debug.Log($"Thread {worker.ManagedThreadId} marked as complete: {worker.Name}");
                 }
             }
         }
