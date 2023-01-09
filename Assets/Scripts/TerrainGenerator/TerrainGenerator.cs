@@ -1,4 +1,3 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -7,33 +6,19 @@ namespace TerrainGenerator {
 
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
-        public bool updateInEditMode = false;
-        public bool updateInPlayMode = false;
-
-        [Header("Map dimensions")]
-        public int mapSize = 1;
-        [Header("Map seed")]
-        public int inputMapSeed = 0;
-        private int mapSeed;
-        [SerializeField]
-        Vector3 mapOffset = new();
-        [Header("Chunk parameters")]
-        [Range(-100, 100)]
-        public int seaLevel = 50;
-        [Range(0, 100)]
-        public int mountainLevel = 10;
-        public PerlinNoiseParameters noiseParameters = new();
-        public int chunkSize = 16;
-        public Material material;
-        public bool generateColliders;
-
-        const string chunkRootName = "Chunk Root";
-        GameObject chunkRoot;
-        bool settingsUpdated;
-        [Header("Dynamic Update Settings")]
-        public bool DynamicGeneration = false;
-        public int chunkRenderDistance = 3;
+        [Header("Chunk viewer")]
         public Transform viewPoint;
+        [Header("Chunk material")]
+        public Material material;
+        [Header("Terrain")]
+        public TerrainGenerationOptions generationOptions;
+
+        GameObject chunkRoot;
+        const string chunkRootName = "Chunk Root";
+
+        bool settingsUpdated;
+        Vector3 mapOffset = new();
+        private int mapSeed;
 
         readonly ChunkPool chunkPool = new();
         Dictionary<Vector3Int, Chunk> existingChunks;
@@ -43,6 +28,7 @@ namespace TerrainGenerator {
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
         private void OnEnable() {
+            Application.targetFrameRate = 60;
             Set();
             ResetChunks();
         }
@@ -60,11 +46,11 @@ namespace TerrainGenerator {
         }
 
         void Update() {
-            if (settingsUpdated || Application.isPlaying && DynamicGeneration) {
+            if (settingsUpdated || Application.isPlaying && generationOptions.DynamicGeneration) {
                 if (!Application.isPlaying) {
                     Set();
                 }
-                if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
+                if (Application.isPlaying && generationOptions.updateInPlayMode || (!Application.isPlaying && generationOptions.updateInEditMode)) {
                     GenerateMesh();
                 }
                 settingsUpdated = false;
@@ -78,10 +64,12 @@ namespace TerrainGenerator {
         }
 
         private void OnDrawGizmos() {
+#if UNITY_EDITOR
             if (!Application.isPlaying) {
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
                 UnityEditor.SceneView.RepaintAll();
             }
+#endif
         }
 
         private void OnValidate() {
@@ -89,11 +77,11 @@ namespace TerrainGenerator {
         }
 
         void SetMapSeed() {
-            if (inputMapSeed == 0) {
+            if (generationOptions.inputMapSeed == 0) {
                 System.Random random = new();
                 mapSeed = random.Next();
             } else {
-                mapSeed = inputMapSeed;
+                mapSeed = generationOptions.inputMapSeed;
             }
         }
 
@@ -103,7 +91,7 @@ namespace TerrainGenerator {
         }
 
         void GenerateMesh() {
-            if (DynamicGeneration && Application.isPlaying) {
+            if (generationOptions.DynamicGeneration && Application.isPlaying) {
                 UpdateDynamicMesh();
             } else {
                 UpdateStaticMesh();
@@ -113,9 +101,9 @@ namespace TerrainGenerator {
         void UpdateDynamicMesh() {
             DestroyChunksOutOfLoadRange();
 
-            Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
+            Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / generationOptions.chunkSize);
 
-            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, chunkRenderDistance)) {
+            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, generationOptions.chunkRenderDistance)) {
                 if (!existingChunks.ContainsKey(chunkPosition)) {
                     existingChunks[chunkPosition] = InitChunk(chunkPosition);
                 }
@@ -123,7 +111,7 @@ namespace TerrainGenerator {
             }
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((chunkPosition + Vector3.one * 0.5f - currentChunk).magnitude > chunkRenderDistance) {
+                if ((chunkPosition + Vector3.one * 0.5f - currentChunk).magnitude > generationOptions.chunkRenderDistance) {
                     existingChunks[chunkPosition].Disable();
                 }
             }
@@ -132,7 +120,7 @@ namespace TerrainGenerator {
         private void DestroyChunksOutOfLoadRange() {
             List<Chunk> chunksToDestroy = new();
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > chunkRenderDistance * chunkSize * 2) {
+                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > generationOptions.chunkRenderDistance * generationOptions.chunkSize * 2) {
                     chunksToDestroy.Add(existingChunks[chunkPosition]);
                 }
             }
@@ -143,15 +131,15 @@ namespace TerrainGenerator {
 
         void UpdateStaticMesh () {
             ResetChunks();
-            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize + 1)) {
+            foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), generationOptions.mapSize + 1)) {
                 existingChunks[chunkPosition] = InitChunk(chunkPosition);
             }
         }
 
         private Chunk InitChunk(Vector3Int chunkPosition) {
             Chunk chunk = chunkPool.Fetch();
-            chunk.Init(chunkPosition, chunkSize, chunkRoot.transform);
-            chunk.SetupMesh(material, generateColliders);
+            chunk.Init(chunkPosition, generationOptions.chunkSize, chunkRoot.transform);
+            chunk.SetupMesh(material, generationOptions.generateColliders);
             Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
             chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
             EnqueueChunkToCreate(chunk);
@@ -174,7 +162,6 @@ namespace TerrainGenerator {
         }
 
         private void EnqueueChunkToCreate(Chunk chunk) {
-            Debug.Log($"Enqueued chunk birth: {chunk.name}", chunk.gameObject);
             chunksToCreate.Push(chunk);
         }
 
@@ -193,7 +180,6 @@ namespace TerrainGenerator {
 
         private void DestroyDeadChunk(Chunk chunk) {
             if (chunk) {
-                Debug.Log($"Destroyed chunk {chunk.name}");
                 existingChunks.Remove(chunk.Coordinates);
                 threadDispatcher.TryKill(chunk.workerId);
                 chunkPool.Store(chunk);
@@ -234,11 +220,11 @@ namespace TerrainGenerator {
         }
 
         float DensityFunction(Vector3 x) {
-            float radius = chunkSize * mapSize;
+            float radius = generationOptions.chunkSize * generationOptions.mapSize;
             return DensityFunctionCollection.Sigmoid(
                 DensityFunctionCollection.SphereDensity(x, radius)
-                + DensityFunctionCollection.Perlin(x + mapOffset, noiseParameters) * mountainLevel * 0.1f
-                ) - seaLevel * 0.01f;
+                + DensityFunctionCollection.Perlin(x + mapOffset, generationOptions.noiseParameters) * generationOptions.mountainLevel * 0.1f
+                ) - generationOptions.seaLevel * 0.01f;
         }
     }
 }
