@@ -24,6 +24,7 @@ public class SimpleFlyer : MonoBehaviour
     RectTransform velocityReticle;
     RectTransform headingReticle;
     Text speedReadout;
+    Text headingReadout;
 
     void Start() {
         LockCursor();
@@ -52,6 +53,7 @@ public class SimpleFlyer : MonoBehaviour
         velocityReticle = GameObject.Find("Velocity Reticle").GetComponent<RectTransform>();
         headingReticle = GameObject.Find("Heading Reticle").GetComponent<RectTransform>();
         speedReadout = GameObject.Find("Speed Readout").GetComponent<Text>();
+        headingReadout = GameObject.Find("Heading Readout").GetComponent<Text>();
         engineSound = GameObject.Find("Engine").GetComponent<AudioSource>();
     }
 
@@ -138,5 +140,9 @@ public class SimpleFlyer : MonoBehaviour
             $"HDX: {velocityHeading.x,6:0.00} DG\n" +
             $"HDY {velocityHeading.y,6:0.00} DG\n" +
             $"HDZ {velocityHeading.z,6:0.00} DG";
+
+        headingReadout.text = $"PIT: {transform.rotation.eulerAngles.x,6:0.00}\n" +
+            $"YAW: {transform.rotation.eulerAngles.y,6:0.00}\n" +
+            $"ROL: {transform.rotation.eulerAngles.z,6:0.00}";
     }
 }
