@@ -10809,7 +10809,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1604181739}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 100, z: -256}
+  m_LocalPosition: {x: 0, y: 15, z: -130}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -10853,6 +10853,37 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 1
+--- !u!1 &1609930638
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1609930639}
+  m_Layer: 0
+  m_Name: Chunk Root
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1609930639
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1609930638}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 7
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1812140737
 GameObject:
   m_ObjectHideFlags: 0
@@ -11086,20 +11117,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   updateInEditMode: 0
   updateInPlayMode: 1
-  mapSize: 1
-  inputMapSeed: 1337
-  mapOffset: {x: 55912, y: 77568, z: 52724}
-  seaLevel: 0
-  mountainLevel: 50
+  mapSize: 8
+  inputMapSeed: 0
+  mapOffset: {x: 112285, y: 128784, z: 56437}
+  seaLevel: 50
+  mountainLevel: 86
   noiseParameters:
     frequency: 10
     persistence: 2
     lacunarity: 2
     octaves: 4
-  chunkSize: 10
+  chunkSize: 16
   material: {fileID: 2100000, guid: 447293887155b8f44a6813e2bd966b4d, type: 2}
   generateColliders: 0
-  DynamicGeneration: 0
+  DynamicGeneration: 1
   chunkRenderDistance: 3
   viewPoint: {fileID: 1604181745}
 --- !u!1 &1861458462
