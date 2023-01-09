@@ -9,13 +9,13 @@ Most of my notes regarding this are in Obsidian. See [ReinardKuroi/worldgen](htt
  - :white_check_mark: Terrain generation via noise + fade function (**CPU**)
  - :black_square_button: Terrain generation via noise + fade function (**GPU Compute**)
  - :white_check_mark: Chunks
- - :black_square_button: Dynamic chunks based on view distance
+ - :white_check_mark: Dynamic chunks based on view distance
  - :white_check_mark: Collision mesh generation
  - :black_square_button: LOD based collision mesh for performance
  - :black_square_button: LOD meshes
  - :black_square_button: LOD meshes based on view distance
  - :white_check_mark: Threaded generation
- - :black_square_button: Background threads
+ - :white_check_mark: Background threads
  - :black_square_button: Terrain modification via diff maps
  - :black_square_button: Saving terrain modification
  - :black_square_button: Terrain props (trees rocks items e.c.t)
