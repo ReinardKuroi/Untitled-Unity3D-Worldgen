@@ -35,19 +35,24 @@ namespace TerrainGenerator {
         public int chunkRenderDistance = 3;
         public Transform viewPoint;
 
+        readonly ChunkPool chunkPool = new();
         Dictionary<Vector3Int, Chunk> existingChunks;
         readonly Stack<Chunk> chunksToCreate = new();
         readonly Stack<Chunk> chunksCompleted = new();
-        readonly Stack<Chunk> chunksToDestroy = new();
 
         readonly ThreadDispatcher threadDispatcher = ThreadDispatcher.Instance;
 
-        private void Awake() {
-            Reset();
+        private void OnEnable() {
+            Set();
+            ResetChunks();
         }
 
-        private void Reset() {
+        private void OnDestroy() {
             ResetChunks();
+            chunkPool.Flush();
+        }
+
+        private void Set() {
             SetMapSeed();
             SetMapOffset();
             CreateChunkRoot();
@@ -57,27 +62,25 @@ namespace TerrainGenerator {
         void Update() {
             if (settingsUpdated || Application.isPlaying && DynamicGeneration) {
                 if (!Application.isPlaying) {
-                    Reset();
+                    Set();
                 }
-                UpdateMesh();
+                if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
+                    GenerateMesh();
+                }
                 settingsUpdated = false;
             }
+        }
+
+        void LateUpdate() {
             CreateChunkWorkers();
             threadDispatcher.UpdateThreads();
             SetCompletedChunkMesh();
-            DestroyDeadChunks();
         }
 
         private void OnDrawGizmos() {
             if (!Application.isPlaying) {
                 UnityEditor.EditorApplication.QueuePlayerLoopUpdate();
                 UnityEditor.SceneView.RepaintAll();
-            }
-        }
-
-        void UpdateMesh() {
-            if (Application.isPlaying && updateInPlayMode || (!Application.isPlaying && updateInEditMode)) {
-                GenerateMesh();
             }
         }
 
@@ -101,73 +104,78 @@ namespace TerrainGenerator {
 
         void GenerateMesh() {
             if (DynamicGeneration && Application.isPlaying) {
-                GenerateDynamicMesh();
+                UpdateDynamicMesh();
             } else {
-                GenerateStaticMesh();
+                UpdateStaticMesh();
             }
         }
 
-        void GenerateDynamicMesh() {
+        void UpdateDynamicMesh() {
+            DestroyChunksOutOfLoadRange();
+
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / chunkSize);
 
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, chunkRenderDistance)) {
                 if (!existingChunks.ContainsKey(chunkPosition)) {
-                    Chunk chunk = InitChunk(chunkPosition);
-                    Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                    chunk.chunkGenerator = new AdaptiveContour(x => DensityFunction(x + chunkOffset), chunk.Size);
-                    existingChunks[chunkPosition] = chunk;
-                    EnqueueChunkToCreate(chunk);
+                    existingChunks[chunkPosition] = InitChunk(chunkPosition);
                 }
                 existingChunks[chunkPosition].Enable();
             }
 
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > chunkRenderDistance * chunkSize) {
+                if ((chunkPosition + Vector3.one * 0.5f - currentChunk).magnitude > chunkRenderDistance) {
                     existingChunks[chunkPosition].Disable();
                 }
             }
+        }
 
+        private void DestroyChunksOutOfLoadRange() {
+            List<Chunk> chunksToDestroy = new();
             foreach (Vector3Int chunkPosition in existingChunks.Keys) {
                 if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > chunkRenderDistance * chunkSize * 2) {
-                    EnqueueChunkToDestroy(existingChunks[chunkPosition]);
+                    chunksToDestroy.Add(existingChunks[chunkPosition]);
                 }
+            }
+            foreach (Chunk chunk in chunksToDestroy) {
+                DestroyDeadChunk(chunk);
             }
         }
 
-        void GenerateStaticMesh () {
+        void UpdateStaticMesh () {
             ResetChunks();
-
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), mapSize + 1)) {
-                Chunk chunk = InitChunk(chunkPosition);
-                Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-                chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
-                EnqueueChunkToCreate(chunk);
-                existingChunks[chunkPosition] = chunk;
+                existingChunks[chunkPosition] = InitChunk(chunkPosition);
             }
+        }
+
+        private Chunk InitChunk(Vector3Int chunkPosition) {
+            Chunk chunk = chunkPool.Fetch();
+            chunk.Init(chunkPosition, chunkSize, chunkRoot.transform);
+            chunk.SetupMesh(material, generateColliders);
+            Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
+            chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
+            EnqueueChunkToCreate(chunk);
+            return chunk;
         }
 
         private void ResetChunks() {
+            threadDispatcher.Flush();
+
             existingChunks = new Dictionary<Vector3Int, Chunk>();
             while (chunksToCreate.TryPop(out Chunk deadchunk)) {
-                EnqueueChunkToDestroy(deadchunk);
+                DestroyDeadChunk(deadchunk);
             }
             while (chunksCompleted.TryPop(out Chunk deadchunk)) {
-                EnqueueChunkToDestroy(deadchunk);
+                DestroyDeadChunk(deadchunk);
             }
-            foreach (Chunk deadChunk in new List<Chunk>(FindObjectsOfType<Chunk>())) {
-                EnqueueChunkToDestroy(deadChunk);
+            foreach (Chunk deadChunk in FindObjectsOfType<Chunk>()) {
+                DestroyDeadChunk(deadChunk);
             }
-            threadDispatcher.Flush();
         }
 
         private void EnqueueChunkToCreate(Chunk chunk) {
             Debug.Log($"Enqueued chunk birth: {chunk.name}", chunk.gameObject);
             chunksToCreate.Push(chunk);
-        }
-
-        private void EnqueueChunkToDestroy(Chunk chunk) {
-            Debug.Log($"Enqueued chunk death: {chunk.name}", chunk.gameObject);
-            chunksToDestroy.Push(chunk);
         }
 
         private void CreateChunkWorkers() {
@@ -180,18 +188,15 @@ namespace TerrainGenerator {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.workerId = 0;
                 chunk.SetMesh();
-                chunk.chunkGenerator = null;
             }
         }
 
-        private void DestroyDeadChunks() {
-            while (chunksToDestroy.TryPop(out Chunk chunk)) {
-                if (chunk) {
-                    Debug.Log($"Destroyed chunk {chunk.name}");
-                    existingChunks.Remove(chunk.Coordinates);
-                    threadDispatcher.TryKill(chunk.workerId);
-                    chunk.Destroy();
-                }
+        private void DestroyDeadChunk(Chunk chunk) {
+            if (chunk) {
+                Debug.Log($"Destroyed chunk {chunk.name}");
+                existingChunks.Remove(chunk.Coordinates);
+                threadDispatcher.TryKill(chunk.workerId);
+                chunkPool.Store(chunk);
             }
         }
 
@@ -212,23 +217,6 @@ namespace TerrainGenerator {
             foreach ((Vector3Int coordinate, float) entry in coordinateList) {
                 yield return entry.coordinate;
             }
-        }
-
-        Chunk InitChunk(Vector3Int coordinates) {
-            Chunk chunk;
-            GameObject chunkObject = new();
-            chunk = chunkObject.GetComponent<Chunk>();
-            if (chunk == null) {
-                chunk = chunkObject.AddComponent<Chunk>();
-            }
-            chunk.Setup(material, generateColliders);
-            chunk.Coordinates = coordinates;
-            chunk.Size = chunkSize;
-            chunk.name = $"Chunk ({chunk.Coordinates})";
-            chunk.transform.parent = chunkRoot.transform;
-            chunk.transform.localPosition = chunk.Coordinates * chunk.Size;
-            chunk.transform.localRotation = Quaternion.identity;
-            return chunk;
         }
 
         void CreateChunkRoot() {
