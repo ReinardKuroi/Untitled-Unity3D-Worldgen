@@ -1,9 +1,7 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace TerrainGenerator {
-
     [ExecuteInEditMode]
     public class TerrainGenerator : MonoBehaviour {
         [Header("Chunk viewer")]
@@ -21,7 +19,7 @@ namespace TerrainGenerator {
         private int mapSeed;
 
         readonly ChunkPool chunkPool = new();
-        Dictionary<Vector3Int, Chunk> existingChunks;
+        Dictionary<int, Chunk> existingChunks;
         readonly Stack<Chunk> chunksToCreate = new();
         readonly Stack<Chunk> chunksCompleted = new();
 
@@ -104,27 +102,29 @@ namespace TerrainGenerator {
             Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / generationOptions.chunkSize);
 
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(currentChunk, generationOptions.chunkRenderDistance)) {
-                if (!existingChunks.ContainsKey(chunkPosition)) {
-                    existingChunks[chunkPosition] = InitChunk(chunkPosition);
+                int chunkHash = Chunk.PositionalHash(chunkPosition);
+                if (!existingChunks.ContainsKey(chunkHash)) {
+                    existingChunks[chunkHash] = InitChunk(chunkPosition);
                 }
-                existingChunks[chunkPosition].Enable();
+                existingChunks[chunkHash].Enable();
             }
 
-            foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((chunkPosition + Vector3.one * 0.5f - currentChunk).magnitude > generationOptions.chunkRenderDistance) {
-                    existingChunks[chunkPosition].Disable();
+            foreach (int chunkHash in existingChunks.Keys) {
+                if ((existingChunks[chunkHash].Center - currentChunk).magnitude > generationOptions.chunkRenderDistance) {
+                    existingChunks[chunkHash].Disable();
                 }
             }
         }
 
         private void DestroyChunksOutOfLoadRange() {
-            List<Chunk> chunksToDestroy = new();
-            foreach (Vector3Int chunkPosition in existingChunks.Keys) {
-                if ((existingChunks[chunkPosition].Center - viewPoint.position).magnitude > generationOptions.chunkRenderDistance * generationOptions.chunkSize * 2) {
-                    chunksToDestroy.Add(existingChunks[chunkPosition]);
+            Queue<Chunk> chunksToDestroy = new();
+            Vector3Int currentChunk = Vector3Int.FloorToInt(viewPoint.position / generationOptions.chunkSize);
+            foreach (int chunkHash in existingChunks.Keys) {
+                if ((existingChunks[chunkHash].Center - currentChunk).magnitude > generationOptions.chunkRenderDistance * 2) {
+                    chunksToDestroy.Enqueue(existingChunks[chunkHash]);
                 }
             }
-            foreach (Chunk chunk in chunksToDestroy) {
+            while (chunksToDestroy.TryDequeue(out Chunk chunk)) {
                 DestroyDeadChunk(chunk);
             }
         }
@@ -132,7 +132,7 @@ namespace TerrainGenerator {
         void UpdateStaticMesh () {
             ResetChunks();
             foreach (Vector3Int chunkPosition in NearbyChunkCoordinates(new Vector3Int(0, 0, 0), generationOptions.mapSize + 1)) {
-                existingChunks[chunkPosition] = InitChunk(chunkPosition);
+                existingChunks[Chunk.PositionalHash(chunkPosition)] = InitChunk(chunkPosition);
             }
         }
 
@@ -149,7 +149,7 @@ namespace TerrainGenerator {
         private void ResetChunks() {
             threadDispatcher.Flush();
 
-            existingChunks = new Dictionary<Vector3Int, Chunk>();
+            existingChunks = new();
             while (chunksToCreate.TryPop(out Chunk deadchunk)) {
                 DestroyDeadChunk(deadchunk);
             }
@@ -167,7 +167,7 @@ namespace TerrainGenerator {
 
         private void CreateChunkWorkers() {
             while (chunksToCreate.TryPop(out Chunk chunk)) {
-                chunk.workerId = threadDispatcher.EnqueueThread(chunk.chunkGenerator.Run, () => chunksCompleted.Push(chunk), workerName: $"{chunk.Coordinates}");
+                chunk.workerId = threadDispatcher.EnqueueThread(chunk.chunkGenerator.Run, () => chunksCompleted.Push(chunk), workerName: chunk.Coordinates.ToString());
             }
         }
 
@@ -175,12 +175,13 @@ namespace TerrainGenerator {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.workerId = 0;
                 chunk.SetMesh();
+                chunk.chunkGenerator = null;
             }
         }
 
         private void DestroyDeadChunk(Chunk chunk) {
             if (chunk) {
-                existingChunks.Remove(chunk.Coordinates);
+                existingChunks.Remove(Chunk.PositionalHash(chunk.Coordinates));
                 threadDispatcher.TryKill(chunk.workerId);
                 chunkPool.Store(chunk);
             }
