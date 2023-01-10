@@ -84,6 +84,7 @@ namespace TerrainGenerator {
             mesh.vertices = vertices.ToArray();
             mesh.triangles = faces.ToArray();
             mesh.RecalculateNormals();
+            mesh.Optimize();
         }
 
         void GenerateVertex(Octet gridCell) {
@@ -189,6 +190,10 @@ namespace TerrainGenerator {
                     }
                 }
             }
+        }
+
+        public void Free() {
+            throw new NotImplementedException();
         }
 
         class GridPoint {
