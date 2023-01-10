@@ -18,7 +18,7 @@ namespace TerrainGenerator {
             chunks.Push(chunk);
             chunk.Disable();
             chunk.ResetMesh();
-            chunk.name = $"Chunk (stored) #{chunks.Count}";
+            chunk.name = "Stored";
         }
 
         public void Flush() {

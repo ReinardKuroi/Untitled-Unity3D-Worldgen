@@ -5,12 +5,11 @@ using UnityEngine;
 
 namespace TerrainGenerator {
     public class Chunk : MonoBehaviour {
-        [field: SerializeField]
-        public Vector3Int Coordinates { get; set; }
-        [field: SerializeField]
+        public Vector3Int Coordinates { get { return coordinates;  } set { coordinates = value; center = value + Vector3.one * 0.5f; } }
+        private Vector3Int coordinates;
         public int Size { get; set; }
-        [SerializeField]
-        public Vector3 Center { get { return Size * (Coordinates + Vector3.one * 0.5f); } }
+        public Vector3 Center { get { return center; } }
+        private Vector3 center;
 
         public bool Empty { get { return mesh.vertexCount == 0 || mesh.triangles.Length == 0; } }
 
@@ -44,7 +43,7 @@ namespace TerrainGenerator {
         public void Init(Vector3Int coordinates, int chunkSize, Transform chunkRoot) {
             Coordinates = coordinates;
             Size = chunkSize;
-            name = $"Chunk ({Coordinates})";
+            name = Coordinates.ToString();
             transform.parent = chunkRoot;
             transform.localPosition = Coordinates * Size;
             transform.localRotation = Quaternion.identity;
@@ -83,7 +82,7 @@ namespace TerrainGenerator {
 
         private void ForceUpdateCollider() {
             meshCollider.enabled = false;
-            meshCollider.enabled = generateCollider;
+            meshCollider.enabled = true;
         }
 
         public void Enable() {
@@ -101,18 +100,20 @@ namespace TerrainGenerator {
         public void SetMesh() {
             chunkGenerator.SetMesh(mesh);
             if (!Empty && generateCollider) {
-                if (generateCollider) {
-                    meshCollider.sharedMesh = mesh;
-                }
+                meshCollider.sharedMesh = mesh;
                 ForceUpdateCollider();
             }
         }
 
         public void ResetMesh() {
             if (mesh != null) {
-                meshCollider.enabled = false;
                 mesh.Clear();
             }
+        }
+
+        public static int PositionalHash(Vector3Int coordinates) {
+            int hashCode = (coordinates.x * 73856093 + coordinates.y * 19349669 + coordinates.z * 83492791) % int.MaxValue;
+            return hashCode;
         }
     }
 }
