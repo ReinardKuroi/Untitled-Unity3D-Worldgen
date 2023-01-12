@@ -20,8 +20,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: White
-  m_Shader: {fileID: -6465566751694194690, guid: 92dc3def88ee1ab47a4f2c7b611c279c,
+  m_Name: Terrain
+  m_Shader: {fileID: -6465566751694194690, guid: 13bb46db2f70e3849aae61b77ac3b5ff,
     type: 3}
   m_ValidKeywords: []
   m_InvalidKeywords: []
@@ -107,7 +107,7 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
-    - _Grass_cut: 0.3
+    - _Grass_cut: 0.97
     - _Metallic: 0
     - _Mountain: 10
     - _OcclusionStrength: 1
@@ -115,13 +115,14 @@ Material:
     - _QueueControl: 0
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _Rock_cut: 0.6
+    - _Rock_cut: 0.91
     - _Sea: 0
     - _Smoothness: 0.06
     - _SmoothnessTextureChannel: 1
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _Surface: 0
+    - _WireThickness: 100
     - _WorkflowMode: 0
     - _ZWrite: 1
     m_Colors:
