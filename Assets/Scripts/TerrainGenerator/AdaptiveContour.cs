@@ -8,9 +8,9 @@ using Unity.Mathematics;
 namespace TerrainGenerator {
 
     public class AdaptiveContour : IMeshGenerator {
-        readonly Func<Vector3, float> densityFunction;
-        static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0)};
-        static readonly int3[,] cubicOffsets = new int3[3,6] {
+        protected readonly Func<Vector3, float> densityFunction;
+        protected static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0)};
+        protected static readonly int3[,] cubicOffsets = new int3[3,6] {
             {
                 // along z
                 new(0, 0, 0),
@@ -38,14 +38,14 @@ namespace TerrainGenerator {
                 new(0, 0, 1)
             }
         };
-        readonly Dictionary<int3, GridPoint> pointDensityData = new();
-        readonly Dictionary<Transition, Vector3> transitionGradients = new();
-        readonly List<int> faces = new();
-        readonly List<Vector3> vertices = new();
-        readonly Dictionary<int3, int> vertexIndices = new();
-        readonly int size;
+        protected readonly Dictionary<int3, GridPoint> pointDensityData = new();
+        protected readonly Dictionary<Transition, Vector3> transitionGradients = new();
+        protected readonly List<int> faces = new();
+        protected readonly List<Vector3> vertices = new();
+        protected readonly Dictionary<int3, int> vertexIndices = new();
+        protected readonly int size;
 
-        float DensityFunction(Vector3 x) {
+        protected float DensityFunction(Vector3 x) {
             return densityFunction(x);
         }
 
@@ -54,14 +54,14 @@ namespace TerrainGenerator {
             this.size = size;
         }
 
-        void PopulateDensityData() {
+        protected void PopulateDensityData() {
             foreach (int3 gridCoordinates in Volume(size, includeEdges: true)) {
                 float density = DensityFunction(new Vector3Int(gridCoordinates.x, gridCoordinates.y, gridCoordinates.z));
                 pointDensityData[gridCoordinates] = new GridPoint(gridCoordinates, density);
             }
         }
 
-        void GroupGirdPointsIntoOctets() {
+        protected void GroupGirdPointsIntoOctets() {
             foreach (int3 gridCoordinates in Volume(size, includeEdges: false)) {
                 Octet octet = new Octet(gridCoordinates, pointDensityData);
                 octet.CalculateTransitions();
@@ -87,24 +87,24 @@ namespace TerrainGenerator {
             mesh.Optimize();
         }
 
-        void GenerateVertex(Octet gridCell) {
+        protected void GenerateVertex(Octet gridCell) {
             vertices.Add(gridCell.vertex);
             vertexIndices[gridCell.coordinates] = vertices.Count - 1;
         }
 
-        void GenerateFaces() {
+        protected void GenerateFaces() {
             foreach (int3 coordinates in Volume(size, includeEdges: false)) {
                 GenerateFacesAtGridCoordinates(coordinates);
             }
         }
 
-        void GenerateFacesAtGridCoordinates(int3 coordinates) {
+        protected void GenerateFacesAtGridCoordinates(int3 coordinates) {
             for (int axis = 0; axis < axisVectors.Length; ++axis) {
                 GenerateFaceAlongAxis(coordinates, axis);
             }
         }
 
-        void GenerateFaceAlongAxis(int3 coordinates, int axis) {
+        protected void GenerateFaceAlongAxis(int3 coordinates, int axis) {
             int3 offsetCoordinates = coordinates + axisVectors[axis];
             if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
                 return;
@@ -120,7 +120,7 @@ namespace TerrainGenerator {
             }
         }
 
-        void CalculateTransitionGradients(IEnumerable<Transition> transitions) {
+        protected void CalculateTransitionGradients(IEnumerable<Transition> transitions) {
             foreach (Transition transition in transitions) {
                 if (!transitionGradients.ContainsKey(transition)) {
                     transitionGradients[transition] = ApproximateNormals(transition.transitionPoint);
@@ -128,7 +128,7 @@ namespace TerrainGenerator {
             }
         }
 
-        int[] GenerateQuad(int3 coordinates, int axis) {
+        protected int[] GenerateQuad(int3 coordinates, int axis) {
             int[] quad = new int[6];
 
             for (int i = 0; i < quad.Length; ++i) {
@@ -139,7 +139,7 @@ namespace TerrainGenerator {
             return quad;
         }
 
-        private Vector3 ParticleDescent(List<Transition> transitions, float threshold = 0.00001f) {
+        protected Vector3 ParticleDescent(List<Transition> transitions, float threshold = 0.00001f) {
             const int maxIterations = 50;
             int transitionsCount = transitions.Count;
             Vector3 centerPoint = new();
@@ -170,7 +170,7 @@ namespace TerrainGenerator {
             return centerPoint;
         }
 
-        Vector3 ApproximateNormals(Vector3 coordinates) {
+        protected Vector3 ApproximateNormals(Vector3 coordinates) {
             float delta = 0.00001f;
             float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0));
             float ny = DensityFunction(coordinates - new Vector3(0, delta, 0));
@@ -179,7 +179,7 @@ namespace TerrainGenerator {
             return Vector3.Normalize(-gradient);
         }
 
-        IEnumerable<int3> Volume(int size, bool includeEdges = true) {
+        protected IEnumerable<int3> Volume(int size, bool includeEdges = true) {
             if (includeEdges) {
                 ++size;
             }
@@ -196,7 +196,7 @@ namespace TerrainGenerator {
             throw new NotImplementedException();
         }
 
-        class GridPoint {
+        protected class GridPoint {
             public readonly int3 coordinates;
             public readonly float density;
             public bool Exists { get { return density > 0; } }
@@ -211,7 +211,7 @@ namespace TerrainGenerator {
             }
         }
 
-        class Octet {
+        protected class Octet {
             public readonly int3 coordinates;
             public readonly GridPoint[] points;
             public Vector3 vertex;
@@ -268,7 +268,7 @@ namespace TerrainGenerator {
             }
         }
 
-        class Transition {
+        protected class Transition {
             public readonly GridPoint from;
             public readonly GridPoint to;
             public readonly Vector3 transitionPoint;
