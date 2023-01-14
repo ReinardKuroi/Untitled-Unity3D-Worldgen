@@ -7,63 +7,14 @@ using Unity.Mathematics;
 
 namespace TerrainGenerator {
 
-    public class AdaptiveContour : IMeshGenerator {
-        readonly Func<Vector3, float> densityFunction;
-        static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0)};
-        static readonly int3[,] cubicOffsets = new int3[3,6] {
-            {
-                // along z
-                new(0, 0, 0),
-                new(1, 0, 0),
-                new(0, 1, 0),
-                new(1, 0, 0),
-                new(1, 1, 0),
-                new(0, 1, 0)
-            },
-            {
-                // along y
-                new(0, 0, 0),
-                new(0, 0, 1),
-                new(1, 0, 0),
-                new(0, 0, 1),
-                new(1, 0, 1),
-                new(1, 0, 0)
-            },            {
-                // along x
-                new(0, 0, 0),
-                new(0, 1, 0),
-                new(0, 0, 1),
-                new(0, 1, 0),
-                new(0, 1, 1),
-                new(0, 0, 1)
-            }
-        };
-        readonly Dictionary<int3, GridPoint> pointDensityData = new();
+    public class AdaptiveContour : CPUMeshGenerator {
         readonly Dictionary<Transition, Vector3> transitionGradients = new();
-        readonly List<int> faces = new();
-        readonly List<Vector3> vertices = new();
-        readonly Dictionary<int3, int> vertexIndices = new();
-        readonly int size;
 
-        float DensityFunction(Vector3 x) {
-            return densityFunction(x);
-        }
+        public AdaptiveContour(Func<Vector3, float> densityFunction, int size) : base(densityFunction, size) { }
 
-        public AdaptiveContour(Func<Vector3, float> densityFunction, int size) {
-            this.densityFunction = densityFunction;
-            this.size = size;
-        }
-
-        void PopulateDensityData() {
-            foreach (int3 gridCoordinates in Volume(size, includeEdges: true)) {
-                float density = DensityFunction(new Vector3Int(gridCoordinates.x, gridCoordinates.y, gridCoordinates.z));
-                pointDensityData[gridCoordinates] = new GridPoint(gridCoordinates, density);
-            }
-        }
-
-        void GroupGirdPointsIntoOctets() {
+        void GenerateVertices() {
             foreach (int3 gridCoordinates in Volume(size, includeEdges: false)) {
-                Octet octet = new Octet(gridCoordinates, pointDensityData);
+                AdaptiveOctet octet = new(gridCoordinates, pointDensityData);
                 octet.CalculateTransitions();
                 if (octet.HasTransitions) {
                     CalculateTransitionGradients(octet.transitions);
@@ -73,51 +24,10 @@ namespace TerrainGenerator {
             }
         }
 
-        public void Run() {
+        public override void Run() {
             PopulateDensityData();
-            GroupGirdPointsIntoOctets();
+            GenerateVertices();
             GenerateFaces();
-        }
-
-        public void SetMesh(Mesh mesh) {
-            mesh.Clear();
-            mesh.vertices = vertices.ToArray();
-            mesh.triangles = faces.ToArray();
-            mesh.RecalculateNormals();
-            mesh.Optimize();
-        }
-
-        void GenerateVertex(Octet gridCell) {
-            vertices.Add(gridCell.vertex);
-            vertexIndices[gridCell.coordinates] = vertices.Count - 1;
-        }
-
-        void GenerateFaces() {
-            foreach (int3 coordinates in Volume(size, includeEdges: false)) {
-                GenerateFacesAtGridCoordinates(coordinates);
-            }
-        }
-
-        void GenerateFacesAtGridCoordinates(int3 coordinates) {
-            for (int axis = 0; axis < axisVectors.Length; ++axis) {
-                GenerateFaceAlongAxis(coordinates, axis);
-            }
-        }
-
-        void GenerateFaceAlongAxis(int3 coordinates, int axis) {
-            int3 offsetCoordinates = coordinates + axisVectors[axis];
-            if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
-                return;
-            }
-            bool inside = pointDensityData[coordinates].Exists;
-            bool outside = pointDensityData[offsetCoordinates].Exists;
-            if (inside != outside) {
-                int[] quad = GenerateQuad(coordinates, axis);
-                if (outside) {
-                    Array.Reverse(quad);
-                }
-                faces.AddRange(quad);
-            }
         }
 
         void CalculateTransitionGradients(IEnumerable<Transition> transitions) {
@@ -126,17 +36,6 @@ namespace TerrainGenerator {
                     transitionGradients[transition] = ApproximateNormals(transition.transitionPoint);
                 }
             }
-        }
-
-        int[] GenerateQuad(int3 coordinates, int axis) {
-            int[] quad = new int[6];
-
-            for (int i = 0; i < quad.Length; ++i) {
-                int3 index = coordinates - cubicOffsets[axis, i];
-                quad[i] = vertexIndices[index];
-            }
-
-            return quad;
         }
 
         private Vector3 ParticleDescent(List<Transition> transitions, float threshold = 0.00001f) {
@@ -179,93 +78,8 @@ namespace TerrainGenerator {
             return Vector3.Normalize(-gradient);
         }
 
-        IEnumerable<int3> Volume(int size, bool includeEdges = true) {
-            if (includeEdges) {
-                ++size;
-            }
-            for (int x = 0; x <= size; ++x) {
-                for (int y = 0; y <= size; ++y) {
-                    for (int z = 0; z <= size; ++z) {
-                        yield return new int3(x, y, z);
-                    }
-                }
-            }
-        }
-
-        public void Free() {
+        public override void Free() {
             throw new NotImplementedException();
-        }
-
-        class GridPoint {
-            public readonly int3 coordinates;
-            public readonly float density;
-            public bool Exists { get { return density > 0; } }
-
-            public GridPoint(int3 coordinates, float density) {
-                this.coordinates = coordinates;
-                this.density = density;
-            }
-
-            public override int GetHashCode() {
-                return coordinates.GetHashCode();
-            }
-        }
-
-        class Octet {
-            public readonly int3 coordinates;
-            public readonly GridPoint[] points;
-            public Vector3 vertex;
-            public List<Transition> transitions;
-            public bool HasTransitions { get { return transitions.Count != 0; } }
-
-            public Octet(int3 coordinates, Dictionary<int3, GridPoint> pointDensityData) {
-                transitions = new();
-                this.coordinates = coordinates;
-                points = GetNeighbouringOctet(pointDensityData);
-            }
-
-            public static int IndexFromCoords(int x, int y, int z) {
-                return x * 4 + y * 2 + z;
-            }
-
-            float Interpolate(float a, float b) {
-                return a / (a - b);
-            }
-
-            GridPoint[] GetNeighbouringOctet(Dictionary<int3, GridPoint> pointDensityData) {
-                GridPoint[] octet = new GridPoint[8];
-                for (int dx = 0; dx < 2; ++dx) {
-                    for (int dy = 0; dy < 2; ++dy) {
-                        for (int dz = 0; dz < 2; ++dz) {
-                            int3 offset = new(dx, dy, dz);
-                            octet[IndexFromCoords(dx, dy, dz)] = pointDensityData[coordinates + offset];
-                        }
-                    }
-                }
-                return octet;
-            }
-
-            IEnumerable<Transition> CalculateTransitionsAlongAxis(int axis) {
-                for (int i = 0; i < 4; ++i) {
-                    int octetIndexA = (i << (axis + 1)) % 7;
-                    int octetIndexB = octetIndexA + (1 << axis);
-                    GridPoint a = points[octetIndexA];
-                    GridPoint b = points[octetIndexB];
-                    if (a.Exists != b.Exists) {
-                        float interpolate = Interpolate(a.density, b.density);
-                        Vector3 interpolatedTransition = new Vector3 (axisVectors[axis].x, axisVectors[axis].y, axisVectors[axis].z) * interpolate;
-                        yield return new(a, b, new Vector3(a.coordinates.x, a.coordinates.y, a.coordinates.z) + interpolatedTransition);
-                    }
-                }
-            }
-
-            public void CalculateTransitions() {
-                for (int axis = 0; axis < axisVectors.Length; ++axis) {
-                    foreach (Transition transition in CalculateTransitionsAlongAxis(axis)) {
-                        transitions.Add(transition);
-                    }
-                }
-            }
         }
 
         class Transition {
@@ -287,6 +101,37 @@ namespace TerrainGenerator {
 
             public override int GetHashCode() {
                 return HashCode.Combine(from, to);
+            }
+        }
+
+        class AdaptiveOctet : Octet {
+            public List<Transition> transitions;
+            public bool HasTransitions { get { return transitions.Count != 0; } }
+
+            public AdaptiveOctet(int3 coordinates, Dictionary<int3, GridPoint> pointDensityData) : base(coordinates, pointDensityData) {
+                transitions = new();
+            }
+
+            IEnumerable<Transition> CalculateTransitionsAlongAxis(int axis) {
+                for (int i = 0; i < 4; ++i) {
+                    int octetIndexA = (i << (axis + 1)) % 7;
+                    int octetIndexB = octetIndexA + (1 << axis);
+                    GridPoint a = points[octetIndexA];
+                    GridPoint b = points[octetIndexB];
+                    if (a.Exists != b.Exists) {
+                        float interpolate = Interpolate(a.density, b.density);
+                        Vector3 interpolatedTransition = new Vector3(axisVectors[axis].x, axisVectors[axis].y, axisVectors[axis].z) * interpolate;
+                        yield return new(a, b, new Vector3(a.coordinates.x, a.coordinates.y, a.coordinates.z) + interpolatedTransition);
+                    }
+                }
+            }
+
+            public void CalculateTransitions() {
+                for (int axis = 0; axis < axisVectors.Length; ++axis) {
+                    foreach (Transition transition in CalculateTransitionsAlongAxis(axis)) {
+                        transitions.Add(transition);
+                    }
+                }
             }
         }
     }
