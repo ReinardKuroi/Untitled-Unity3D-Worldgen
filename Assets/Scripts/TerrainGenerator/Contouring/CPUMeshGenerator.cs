@@ -34,16 +34,13 @@ namespace TerrainGenerator {
                 new(0, 0, 1)
             }
         };
-        protected readonly Func<Vector3, float> densityFunction;
-        protected readonly Dictionary<int3, GridPoint> pointDensityData = new();
+        protected readonly IDensityData densityData;
         protected readonly List<int> faces = new();
         protected readonly List<Vector3> vertices = new();
         protected readonly Dictionary<int3, int> vertexIndices = new();
-        protected readonly int size;
 
-        public CPUMeshGenerator(Func<Vector3, float> densityFunction, int size) {
-            this.densityFunction = densityFunction;
-            this.size = size;
+        public CPUMeshGenerator(IDensityData densityData) {
+            this.densityData = densityData;
         }
 
         public abstract void Free();
@@ -58,17 +55,13 @@ namespace TerrainGenerator {
             mesh.Optimize();
         }
 
-        protected float DensityFunction(Vector3 x) {
-            return densityFunction(x);
-        }
-
         protected void GenerateFaceAlongAxis(int3 coordinates, int axis) {
             int3 offsetCoordinates = coordinates + axisVectors[axis];
             if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
                 return;
             }
-            bool inside = pointDensityData[coordinates].Exists;
-            bool outside = pointDensityData[offsetCoordinates].Exists;
+            bool inside = densityData.PointDensityData[coordinates].Exists;
+            bool outside = densityData.PointDensityData[offsetCoordinates].Exists;
             if (inside != outside) {
                 int[] quad = GenerateQuad(coordinates, axis);
                 if (outside) {
@@ -79,7 +72,7 @@ namespace TerrainGenerator {
         }
 
         protected void GenerateFaces() {
-            foreach (int3 coordinates in Volume(size, includeEdges: false)) {
+            foreach (int3 coordinates in densityData.Points(includeEdges: false)) {
                 GenerateFacesAtGridCoordinates(coordinates);
             }
         }
@@ -104,40 +97,6 @@ namespace TerrainGenerator {
             }
 
             return quad;
-        }
-
-        protected void PopulateDensityData() {
-            foreach (int3 gridCoordinates in Volume(size, includeEdges: true)) {
-                float density = DensityFunction(new Vector3Int(gridCoordinates.x, gridCoordinates.y, gridCoordinates.z));
-                pointDensityData[gridCoordinates] = new GridPoint(gridCoordinates, density);
-            }
-        }
-
-        protected IEnumerable<int3> Volume(int size, bool includeEdges = true) {
-            if (includeEdges) {
-                ++size;
-            }
-            for (int x = 0; x <= size; ++x) {
-                for (int y = 0; y <= size; ++y) {
-                    for (int z = 0; z <= size; ++z) {
-                        yield return new int3(x, y, z);
-                    }
-                }
-            }
-        }
-        protected class GridPoint {
-            public readonly int3 coordinates;
-            public readonly float density;
-            public bool Exists { get { return density > 0; } }
-
-            public GridPoint(int3 coordinates, float density) {
-                this.coordinates = coordinates;
-                this.density = density;
-            }
-
-            public override int GetHashCode() {
-                return coordinates.GetHashCode();
-            }
         }
 
         protected class Octet {

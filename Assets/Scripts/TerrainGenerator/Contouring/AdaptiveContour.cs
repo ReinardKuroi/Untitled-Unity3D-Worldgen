@@ -8,13 +8,14 @@ using Unity.Mathematics;
 namespace TerrainGenerator {
 
     public class AdaptiveContour : CPUMeshGenerator {
-        readonly Dictionary<Transition, Vector3> transitionGradients = new();
-
-        public AdaptiveContour(Func<Vector3, float> densityFunction, int size) : base(densityFunction, size) { }
+        protected new readonly HermiteData densityData;
+        public AdaptiveContour(HermiteData densityData) {
+            this.densityData = densityData;
+        }
 
         void GenerateVertices() {
-            foreach (int3 gridCoordinates in Volume(size, includeEdges: false)) {
-                AdaptiveOctet octet = new(gridCoordinates, pointDensityData);
+            foreach (int3 gridCoordinates in densityData.Points(includeEdges: false)) {
+                AdaptiveOctet octet = new(gridCoordinates, densityData.PointDensityData);
                 octet.CalculateTransitions();
                 if (octet.HasTransitions) {
                     CalculateTransitionGradients(octet.transitions);
@@ -25,15 +26,14 @@ namespace TerrainGenerator {
         }
 
         public override void Run() {
-            PopulateDensityData();
             GenerateVertices();
             GenerateFaces();
         }
 
         void CalculateTransitionGradients(IEnumerable<Transition> transitions) {
             foreach (Transition transition in transitions) {
-                if (!transitionGradients.ContainsKey(transition)) {
-                    transitionGradients[transition] = ApproximateNormals(transition.transitionPoint);
+                if (!densityData.TransitionGradients.ContainsKey(transition)) {
+                    densityData.TransitionGradients[transition] = ApproximateNormals(transition.transitionPoint);
                 }
             }
         }
@@ -54,8 +54,8 @@ namespace TerrainGenerator {
                 for (int j = 0; j < transitionsCount; ++j) {
                     Transition transition = transitions[j];
                     Vector3 transitionPoint = transition.transitionPoint;
-                    force += -1f * Vector3.Dot(transitionGradients[transition], centerPoint - transitionPoint)
-                        * transitionGradients[transition];
+                    force += -1f * Vector3.Dot(densityData.TransitionGradients[transition], centerPoint - transitionPoint)
+                        * densityData.TransitionGradients[transition];
                 }
 
                 float damping = 1 - (float)i / maxIterations;
