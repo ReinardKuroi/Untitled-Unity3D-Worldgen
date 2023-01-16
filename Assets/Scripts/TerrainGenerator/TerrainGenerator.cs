@@ -141,6 +141,7 @@ namespace TerrainGenerator {
             chunk.Init(chunkPosition, generationOptions.chunkSize, chunkRoot.transform);
             chunk.SetupMesh(material, generationOptions.generateColliders);
             Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
+            chunk.densityFactory = 
             chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
             EnqueueChunkToCreate(chunk);
             return chunk;

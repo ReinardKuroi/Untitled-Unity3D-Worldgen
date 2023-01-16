@@ -4,16 +4,16 @@ using Unity.Mathematics;
 
 namespace TerrainGenerator {
 
-    public interface IDensityFactory {
-        IDensityData DensityData { get; }
+    public interface IDensityFactory<T> where T : IDensityData {
+        T DensityData { get; }
 
         void PopulateDensityData();
     }
 
-    public class DensityGenerator : IDensityFactory {
-        protected readonly IDensityData densityData;
+    public class DensityGenerator : IDensityFactory<DensityData> {
+        protected readonly DensityData densityData;
         protected readonly Func<Vector3, float> densityFunction;
-        public IDensityData DensityData { get { return densityData; } }
+        public DensityData DensityData { get { return densityData; } }
 
         public void PopulateDensityData() {
             foreach (int3 gridCoordinates in DensityData.Points(includeEdges: true)) {

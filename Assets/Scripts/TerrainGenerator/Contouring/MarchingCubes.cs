@@ -5,16 +5,14 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace TerrainGenerator {
-    public class MarchingCubes : CPUMeshGenerator {
-        public MarchingCubes(Func<Vector3, float> densityFunction, int size) : base(densityFunction, size) { }
+    public class MarchingCubes : CPUMeshGenerator<DensityData> {
+        public MarchingCubes(DensityData densityData) : base(densityData) { }
 
         public override void Free() {
             throw new System.NotImplementedException();
         }
 
         public override void Run() {
-            PopulateDensityData();
-
             GenerateFaces();
         }
 

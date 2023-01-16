@@ -4,7 +4,7 @@ using UnityEngine;
 using Unity.Mathematics;
 
 namespace TerrainGenerator {
-    public abstract class CPUMeshGenerator : IMeshGenerator {
+    public abstract class CPUMeshGenerator<T> : IMeshGenerator where T : IDensityData {
         protected static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0) };
         protected static readonly int3[,] cubicOffsets = new int3[3, 6] {
             {
@@ -34,12 +34,12 @@ namespace TerrainGenerator {
                 new(0, 0, 1)
             }
         };
-        protected readonly IDensityData densityData;
+        protected readonly T densityData;
         protected readonly List<int> faces = new();
         protected readonly List<Vector3> vertices = new();
         protected readonly Dictionary<int3, int> vertexIndices = new();
 
-        public CPUMeshGenerator(IDensityData densityData) {
+        public CPUMeshGenerator(T densityData) {
             this.densityData = densityData;
         }
 

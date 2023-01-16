@@ -14,6 +14,8 @@ namespace TerrainGenerator {
         public bool Empty { get { return mesh.vertexCount == 0 || mesh.triangles.Length == 0; } }
 
         public IMeshGenerator chunkGenerator;
+        public IDensityData densityData;
+        public IDensityFactory densityFactory;
         public int workerId;
 
         [HideInInspector]

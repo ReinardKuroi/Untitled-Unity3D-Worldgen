@@ -7,11 +7,8 @@ using Unity.Mathematics;
 
 namespace TerrainGenerator {
 
-    public class AdaptiveContour : CPUMeshGenerator {
-        protected new readonly HermiteData densityData;
-        public AdaptiveContour(HermiteData densityData) {
-            this.densityData = densityData;
-        }
+    public class AdaptiveContour : CPUMeshGenerator<HermiteData> {
+        public AdaptiveContour(HermiteData densityData) : base(densityData) { }
 
         void GenerateVertices() {
             foreach (int3 gridCoordinates in densityData.Points(includeEdges: false)) {
@@ -70,38 +67,17 @@ namespace TerrainGenerator {
         }
 
         Vector3 ApproximateNormals(Vector3 coordinates) {
-            float delta = 0.00001f;
-            float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0));
-            float ny = DensityFunction(coordinates - new Vector3(0, delta, 0));
-            float nz = DensityFunction(coordinates - new Vector3(0, 0, delta));
-            Vector3 gradient = new(nx, ny, nz);
-            return Vector3.Normalize(-gradient);
+            //float delta = 0.00001f;
+            //float nx = DensityFunction(coordinates - new Vector3(delta, 0, 0));
+            //float ny = DensityFunction(coordinates - new Vector3(0, delta, 0));
+            //float nz = DensityFunction(coordinates - new Vector3(0, 0, delta));
+            //Vector3 gradient = new(nx, ny, nz);
+            //return Vector3.Normalize(-gradient);
+            return new();
         }
 
         public override void Free() {
             throw new NotImplementedException();
-        }
-
-        class Transition {
-            public readonly GridPoint from;
-            public readonly GridPoint to;
-            public readonly Vector3 transitionPoint;
-
-            public Transition(GridPoint from, GridPoint to, Vector3 transitionPoint) {
-                this.from = from;
-                this.to = to;
-                this.transitionPoint = transitionPoint;
-            }
-
-            public override bool Equals(object obj) {
-                return obj is Transition transition &&
-                       EqualityComparer<GridPoint>.Default.Equals(from, transition.from) &&
-                       EqualityComparer<GridPoint>.Default.Equals(to, transition.to);
-            }
-
-            public override int GetHashCode() {
-                return HashCode.Combine(from, to);
-            }
         }
 
         class AdaptiveOctet : Octet {
