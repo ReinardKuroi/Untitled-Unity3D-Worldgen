@@ -48,7 +48,7 @@ namespace TerrainGenerator {
                 GridPoint b = points[octetIndexB];
                 if (a.Exists != b.Exists) {
                     float interpolate = Interpolate(a.density, b.density);
-                    Vector3 interpolatedTransition = new Vector3(axisVectors[axis].x, axisVectors[axis].y, axisVectors[axis].z) * interpolate;
+                    Vector3 interpolatedTransition = new Vector3(SpatialTools.axisVectors[axis].x, SpatialTools.axisVectors[axis].y, SpatialTools.axisVectors[axis].z) * interpolate;
                     yield return new(a, b, new Vector3(a.coordinates.x, a.coordinates.y, a.coordinates.z) + interpolatedTransition);
                 }
             }
