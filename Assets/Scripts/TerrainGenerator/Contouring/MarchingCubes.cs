@@ -6,13 +6,11 @@ using UnityEngine;
 
 namespace TerrainGenerator {
     public class MarchingCubes : CPUMeshGenerator<DensityData> {
-        public MarchingCubes(DensityData densityData) : base(densityData) { }
-
         public override void Free() {
             throw new System.NotImplementedException();
         }
 
-        public override void Run() {
+        public override void CreateMesh() {
             GenerateFaces();
         }
 

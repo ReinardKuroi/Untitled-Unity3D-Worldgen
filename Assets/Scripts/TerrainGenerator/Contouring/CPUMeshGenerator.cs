@@ -4,48 +4,16 @@ using UnityEngine;
 using Unity.Mathematics;
 
 namespace TerrainGenerator {
-    public abstract class CPUMeshGenerator<T> : IMeshGenerator where T : IDensityData {
-        protected static readonly int3[] axisVectors = new int3[3] { new(0, 0, 1), new(0, 1, 0), new(1, 0, 0) };
-        protected static readonly int3[,] cubicOffsets = new int3[3, 6] {
-            {
-                // along z
-                new(0, 0, 0),
-                new(1, 0, 0),
-                new(0, 1, 0),
-                new(1, 0, 0),
-                new(1, 1, 0),
-                new(0, 1, 0)
-            },
-            {
-                // along y
-                new(0, 0, 0),
-                new(0, 0, 1),
-                new(1, 0, 0),
-                new(0, 0, 1),
-                new(1, 0, 1),
-                new(1, 0, 0)
-            },            {
-                // along x
-                new(0, 0, 0),
-                new(0, 1, 0),
-                new(0, 0, 1),
-                new(0, 1, 0),
-                new(0, 1, 1),
-                new(0, 0, 1)
-            }
-        };
-        protected readonly T densityData;
+    public abstract class CPUMeshGenerator<T> where T : DensityData {
+        protected T densityData;
+        public T DensityData { get { return densityData; } set { densityData = value; } }
         protected readonly List<int> faces = new();
         protected readonly List<Vector3> vertices = new();
         protected readonly Dictionary<int3, int> vertexIndices = new();
 
-        public CPUMeshGenerator(T densityData) {
-            this.densityData = densityData;
-        }
-
         public abstract void Free();
 
-        public abstract void Run();
+        public abstract void CreateMesh();
 
         public void SetMesh(Mesh mesh) {
             mesh.Clear();
@@ -56,7 +24,7 @@ namespace TerrainGenerator {
         }
 
         protected void GenerateFaceAlongAxis(int3 coordinates, int axis) {
-            int3 offsetCoordinates = coordinates + axisVectors[axis];
+            int3 offsetCoordinates = coordinates + SpatialTools.axisVectors[axis];
             if (offsetCoordinates.x == 0 || offsetCoordinates.y == 0 || offsetCoordinates.z == 0) {
                 return;
             }
@@ -78,7 +46,7 @@ namespace TerrainGenerator {
         }
 
         protected void GenerateFacesAtGridCoordinates(int3 coordinates) {
-            for (int axis = 0; axis < axisVectors.Length; ++axis) {
+            for (int axis = 0; axis < SpatialTools.axisVectors.Length; ++axis) {
                 GenerateFaceAlongAxis(coordinates, axis);
             }
         }
@@ -92,7 +60,7 @@ namespace TerrainGenerator {
             int[] quad = new int[6];
 
             for (int i = 0; i < quad.Length; ++i) {
-                int3 index = coordinates - cubicOffsets[axis, i];
+                int3 index = coordinates - SpatialTools.cubicOffsets[axis, i];
                 quad[i] = vertexIndices[index];
             }
 
@@ -104,9 +72,9 @@ namespace TerrainGenerator {
             public readonly GridPoint[] points;
             public Vector3 vertex;
 
-            public Octet(int3 coordinates, Dictionary<int3, GridPoint> pointDensityData) {
+            public Octet(int3 coordinates, T densityData) {
                 this.coordinates = coordinates;
-                points = GetNeighbouringOctet(pointDensityData);
+                points = GetNeighbouringOctet(densityData.PointDensityData);
             }
 
             public static int IndexFromCoords(int x, int y, int z) {

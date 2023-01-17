@@ -141,8 +141,8 @@ namespace TerrainGenerator {
             chunk.Init(chunkPosition, generationOptions.chunkSize, chunkRoot.transform);
             chunk.SetupMesh(material, generationOptions.generateColliders);
             Vector3 chunkOffset = chunk.Coordinates * chunk.Size;
-            chunk.densityFactory = 
-            chunk.chunkGenerator = new AdaptiveContour((x) => DensityFunction(x + chunkOffset), chunk.Size);
+            chunk.densityGenerator = new HermiteDensityFactory(DensityFunction, chunk.Size, chunkOffset);
+            chunk.meshGenerator = new AdaptiveContour();
             EnqueueChunkToCreate(chunk);
             return chunk;
         }
@@ -168,7 +168,14 @@ namespace TerrainGenerator {
 
         private void CreateChunkWorkers() {
             while (chunksToCreate.TryPop(out Chunk chunk)) {
-                chunk.workerId = threadDispatcher.EnqueueThread(chunk.chunkGenerator.Run, () => chunksCompleted.Push(chunk), workerName: chunk.Coordinates.ToString());
+                chunk.workerId = threadDispatcher.EnqueueThread(
+                    () => {
+                        chunk.densityGenerator.GenerateData();
+                        chunk.meshGenerator.DensityData = chunk.densityGenerator.DensityData;
+                        chunk.meshGenerator.CreateMesh();
+                    },
+                    () => chunksCompleted.Push(chunk),
+                    workerName: chunk.Coordinates.ToString());
             }
         }
 
@@ -176,7 +183,7 @@ namespace TerrainGenerator {
             while (chunksCompleted.TryPop(out Chunk chunk)) {
                 chunk.workerId = 0;
                 chunk.SetMesh();
-                chunk.chunkGenerator = null;
+                chunk.meshGenerator = null;
             }
         }
 

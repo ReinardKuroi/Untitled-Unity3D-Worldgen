@@ -4,16 +4,15 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace TerrainGenerator {
-    public class DensityData : IDensityData {
+    public class DensityData {
         protected readonly Dictionary<int3, GridPoint> pointDensityData = new();
         protected readonly int size;
+        public Dictionary<int3, GridPoint> PointDensityData { get { return pointDensityData; } }
+        public int Size { get { return size; } }
 
         public DensityData(int size) {
             this.size = size;
         }
-
-        public Dictionary<int3, GridPoint> PointDensityData { get { return pointDensityData; } }
-        public int Size { get { return size; } }
 
         public void SetPointDensity(int3 grid, GridPoint point) {
             pointDensityData[grid] = point;
