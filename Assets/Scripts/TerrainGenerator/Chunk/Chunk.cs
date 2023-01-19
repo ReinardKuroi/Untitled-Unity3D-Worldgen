@@ -13,7 +13,8 @@ namespace TerrainGenerator {
 
         public bool Empty { get { return mesh.vertexCount == 0 || mesh.triangles.Length == 0; } }
 
-        public IMeshGenerator chunkGenerator;
+        public HermiteDensityFactory densityGenerator;
+        public AdaptiveContour meshGenerator;
         public int workerId;
 
         [HideInInspector]
@@ -98,7 +99,7 @@ namespace TerrainGenerator {
         }
 
         public void SetMesh() {
-            chunkGenerator.SetMesh(mesh);
+            meshGenerator.SetMesh(mesh);
             if (!Empty && generateCollider) {
                 meshCollider.sharedMesh = mesh;
                 ForceUpdateCollider();
